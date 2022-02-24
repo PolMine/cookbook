@@ -1,0 +1,123 @@
+---
+title: "CWB manifesto corpus from scratch"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Problem statement
+
+Getting pdf documents of manifestos, extracting text, cleaning the data and building a manifesto corpus would be a great Fingerübung. But the corpus of the Manifesto Project is one established corpus used by many researchers. As it is licensed data, a corpus built on it cannot be shared freely. But we can share the code to build the corpus, and this is what I want to do here.
+
+```{r}
+if (!"manifestoR" %in% unname(installed.packages()[,"Package"])){
+  install.packages("manifestoR")
+}
+library(manifestoR)
+library(tibble)
+library(cwbtools)
+library(data.table)
+library(RcppCWB)
+library(polmineR)
+```
+
+To gain access to the Manifesto Database, you need an API key. 
+
+```{r}
+mp_setapikey("~/.credentials/manifesto_api_key.txt")
+```
+
+
+# downloading manifesto dataset
+
+```{r}
+mpds <- mp_maindataset()
+de <- mp_corpus(countryname == "Germany")
+```
+
+This is a pretty condensed way to turn this into a tibble.
+
+```{r}
+tbl <- tibble(
+  party = as.character(unname(sapply(lapply(de,  `[[`, "meta"), `[[`, "party"))),
+  date = as.character(unname(sapply(lapply(de,  `[[`, "meta"), `[[`, "date"))),
+  txt = unlist(sapply(lapply(lapply(de,  `[[`, "content"), `[[`, "text"), paste, collapse = "\n"))
+)
+```
+
+
+```{r, message = FALSE, results = FALSE}
+manifesto_data_dir <- file.path(tempdir(), "manifestos2")
+if (!file.exists(manifesto_data_dir)) dir.create(manifesto_data_dir)
+file.remove(list.files(manifesto_data_dir, full.names = TRUE))
+```
+
+... and instantiating a `CorpusData` object.
+
+```{r}
+Manifestos <- CorpusData$new()
+```
+
+The `tidytext` package offers an efficient workflow to create the token stream we can assign to the `CorpusData` object.
+
+```{r}
+tbl <- tidytext::unnest_tokens(tbl = tbl, output = "word", input = "txt", to_lower = FALSE)
+Manifestos$tokenstream <- as.data.table(tbl)
+```
+
+We assign (zero-based!) corpus positions. 
+
+```{r}
+Manifestos$tokenstream[, cpos := 0L:(nrow(tbl) - 1L)]
+```
+
+Create table with structural attributes.
+
+```{r}
+cpos_max_min <- function(x) list(cpos_left = min(x[["cpos"]]), cpos_right = max(x[["cpos"]]))
+Manifestos$metadata <- Manifestos$tokenstream[, cpos_max_min(.SD), by = c("party", "date")]
+setcolorder(Manifestos$metadata, c("cpos_left", "cpos_right", "party", "date"))
+Manifestos$metadata[, "party" := "SPD"]
+```
+
+Remove the metadata from the table in the `tokenstream` field and order the columns nicely. 
+
+```{r}
+Manifestos$tokenstream[, party := NULL][, date := NULL]
+setcolorder(Manifestos$tokenstream, "cpos")
+Manifestos$tokenstream
+```
+
+Ready to encode the corpus!
+
+```{r, message = FALSE}
+Manifestos$encode(
+   corpus = "MANIFESTOS2", encoding = "utf8",
+   p_attributes = "word", s_attributes = c("date", "party"),
+   registry_dir = registry(), data_dir = manifesto_data_dir,
+   method = "CWB", compress = TRUE
+)
+```
+
+The new corpus still needs to be loaded.
+
+```{r}
+cl_load_corpus(corpus = "MANIFESTOS", registry = registry())
+cqp_load_corpus(corpus = "MANIFESTOS", registry = registry())
+```
+
+This is a rudimentary check (using low-level RcppCWB functions) whether to corpus can be used. How often does the token "pride" occur?
+
+```{r}
+count("MANIFESTOS", query = "Digitalisierung")
+```
+
+```{r, render = knit_print}
+context("MANIFESTOS", query = "Krieg") %>%
+  kwic(s_attributes = "party")
+```
+
+
+```{r}
+mp_cite()
+```
