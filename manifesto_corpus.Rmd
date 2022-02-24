@@ -19,6 +19,7 @@ library(cwbtools)
 library(data.table)
 library(RcppCWB)
 library(polmineR)
+library(tokenizers)
 ```
 
 To gain access to the Manifesto Database, you need an API key. 
@@ -46,60 +47,51 @@ tbl <- tibble(
 ```
 
 
-```{r, message = FALSE, results = FALSE}
-manifesto_data_dir <- file.path(tempdir(), "manifestos2")
-if (!file.exists(manifesto_data_dir)) dir.create(manifesto_data_dir)
-file.remove(list.files(manifesto_data_dir, full.names = TRUE))
-```
-
-... and instantiating a `CorpusData` object.
-
 ```{r}
-Manifestos <- CorpusData$new()
-```
-
-The `tidytext` package offers an efficient workflow to create the token stream we can assign to the `CorpusData` object.
-
-```{r}
-tbl <- tidytext::unnest_tokens(tbl = tbl, output = "word", input = "txt", to_lower = FALSE)
-Manifestos$tokenstream <- as.data.table(tbl)
-```
-
-We assign (zero-based!) corpus positions. 
-
-```{r}
-Manifestos$tokenstream[, cpos := 0L:(nrow(tbl) - 1L)]
-```
-
-Create table with structural attributes.
-
-```{r}
-cpos_max_min <- function(x) list(cpos_left = min(x[["cpos"]]), cpos_right = max(x[["cpos"]]))
-Manifestos$metadata <- Manifestos$tokenstream[, cpos_max_min(.SD), by = c("party", "date")]
-setcolorder(Manifestos$metadata, c("cpos_left", "cpos_right", "party", "date"))
-Manifestos$metadata[, "party" := "SPD"]
-```
-
-Remove the metadata from the table in the `tokenstream` field and order the columns nicely. 
-
-```{r}
-Manifestos$tokenstream[, party := NULL][, date := NULL]
-setcolorder(Manifestos$tokenstream, "cpos")
-Manifestos$tokenstream
-```
-
-Ready to encode the corpus!
-
-```{r, message = FALSE}
-Manifestos$encode(
-   corpus = "MANIFESTOS2", encoding = "utf8",
-   p_attributes = "word", s_attributes = c("date", "party"),
-   registry_dir = registry(), data_dir = manifesto_data_dir,
-   method = "CWB", compress = TRUE
+tok <- lapply(
+  tbl$txt,
+  function(txt){
+    tokenize_words(
+      x = unname(unlist(tokenize_sentences(x = txt))),
+      lowercase = FALSE, strip_punct = FALSE
+    )
+  }
 )
+body <- lapply(tok, function(x) paste(sprintf("<s>\n%s\n</s>\n", sapply(x, paste, collapse = "\n")), collapse = "\n"))
+
+xml <- paste(
+  sprintf(
+    "<text party='%s' date='%s'>\n%s\n</text>",
+    tbl$party, tbl$date, body
+  ),
+  collapse = "\n"
+)
+which(xml == "<")
+vrt_dir <- file.path(tempdir(), "vrt")
+dir.create(vrt_dir)
+cat(xml, file = file.path(vrt_dir, "manifestos.vrt"))
+data_dir <- file.path(tempdir(), "data_dir")
+dir.create(data_dir)
 ```
 
 The new corpus still needs to be loaded.
+
+```{r}
+cwb_encode(
+  corpus = "MANIFESTOS",
+  registry = registry(),
+  vrt_dir = vrt_dir,
+  data_dir = data_dir,
+  encoding = "utf8",
+  p_attributes = "word",
+  s_attributes = list(text = c("party", "date"), s = character()),
+)
+
+p_attr <- "word"
+cwb_makeall(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry())
+cwb_huffcode(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry())
+cwb_compress_rdx(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry())
+```
 
 ```{r}
 cl_load_corpus(corpus = "MANIFESTOS", registry = registry())
@@ -109,12 +101,15 @@ cqp_load_corpus(corpus = "MANIFESTOS", registry = registry())
 This is a rudimentary check (using low-level RcppCWB functions) whether to corpus can be used. How often does the token "pride" occur?
 
 ```{r}
-count("MANIFESTOS", query = "Digitalisierung")
+count("MANIFESTOS", query = "Digitalisierung", )
 ```
 
 ```{r, render = knit_print}
-context("MANIFESTOS", query = "Krieg") %>%
-  kwic(s_attributes = "party")
+kwic(
+  "MANIFESTOS", query = "Krieg",
+  s_attributes = c("text_party", "text_date"),
+  left = c(s = 1L), right = c(s = 1L)
+)
 ```
 
 
