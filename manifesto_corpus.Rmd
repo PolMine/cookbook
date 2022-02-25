@@ -14,12 +14,10 @@ if (!"manifestoR" %in% unname(installed.packages()[,"Package"])){
   install.packages("manifestoR")
 }
 library(manifestoR)
-library(tibble)
-library(cwbtools)
-library(data.table)
-library(RcppCWB)
-library(polmineR)
+library(RcppCWB) # dev version v0.5.0.9010 or higher
+library(polmineR) # dev version 
 library(tokenizers)
+library(dplyr)
 ```
 
 To gain access to the Manifesto Database, you need an API key. 
@@ -33,15 +31,25 @@ mp_setapikey("~/.credentials/manifesto_api_key.txt")
 
 ```{r}
 mpds <- mp_maindataset()
+party_ids <- mpds %>%
+  select(country, countryname, party, partyname, partyabbrev) %>%
+  distinct(party, .keep_all = TRUE)
+parties <- setNames(party_ids$partyabbrev, party_ids$party)
+```
+
+```{r}
 de <- mp_corpus(countryname == "Germany")
 ```
 
 This is a pretty condensed way to turn this into a tibble.
 
 ```{r}
-tbl <- tibble(
-  party = as.character(unname(sapply(lapply(de,  `[[`, "meta"), `[[`, "party"))),
+party_ids <- as.character(unname(sapply(lapply(de,  `[[`, "meta"), `[[`, "party")))
+df <- data.frame(
+  party_id = party_ids,
+  party = unname(parties[party_ids]),
   date = as.character(unname(sapply(lapply(de,  `[[`, "meta"), `[[`, "date"))),
+  language = as.character(unname(sapply(lapply(de,  `[[`, "meta"), `[[`, "language"))),
   txt = unlist(sapply(lapply(lapply(de,  `[[`, "content"), `[[`, "text"), paste, collapse = "\n"))
 )
 ```
@@ -49,7 +57,7 @@ tbl <- tibble(
 
 ```{r}
 tok <- lapply(
-  tbl$txt,
+  df$txt,
   function(txt){
     tokenize_words(
       x = unname(unlist(tokenize_sentences(x = txt))),
@@ -57,19 +65,27 @@ tok <- lapply(
     )
   }
 )
-body <- lapply(tok, function(x) paste(sprintf("<s>\n%s\n</s>\n", sapply(x, paste, collapse = "\n")), collapse = "\n"))
+```
 
+```{r}
+body <- lapply(tok, function(x) paste(sprintf("<s>\n%s\n</s>\n", sapply(x, paste, collapse = "\n")), collapse = "\n"))
 xml <- paste(
   sprintf(
-    "<text party='%s' date='%s'>\n%s\n</text>",
-    tbl$party, tbl$date, body
+    "<text party_id='%s' party='%s' date='%s' language='%s'>\n%s\n</text>",
+    df$party_id, df$party, df$date, df$language, body
   ),
   collapse = "\n"
 )
-which(xml == "<")
+```
+
+
+```{r}
 vrt_dir <- file.path(tempdir(), "vrt")
 dir.create(vrt_dir)
 cat(xml, file = file.path(vrt_dir, "manifestos.vrt"))
+```
+
+```{r}
 data_dir <- file.path(tempdir(), "data_dir")
 dir.create(data_dir)
 ```
@@ -84,7 +100,7 @@ cwb_encode(
   data_dir = data_dir,
   encoding = "utf8",
   p_attributes = "word",
-  s_attributes = list(text = c("party", "date"), s = character()),
+  s_attributes = list(text = c("party_id", "party", "date", "language"), s = character()),
 )
 
 p_attr <- "word"
@@ -101,7 +117,7 @@ cqp_load_corpus(corpus = "MANIFESTOS", registry = registry())
 This is a rudimentary check (using low-level RcppCWB functions) whether to corpus can be used. How often does the token "pride" occur?
 
 ```{r}
-count("MANIFESTOS", query = "Digitalisierung", )
+polmineR::count("MANIFESTOS", query = "Digitalisierung", )
 ```
 
 ```{r, render = knit_print}
