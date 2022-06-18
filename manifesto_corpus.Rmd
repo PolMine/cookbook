@@ -9,6 +9,8 @@ editor_options:
 
 Getting pdf documents of manifestos, extracting text, cleaning the data and building a manifesto corpus would be a great Fingerübung. But the corpus of the Manifesto Project is one established corpus used by many researchers. As it is licensed data, a corpus built on it cannot be shared freely. But we can share the code to build the corpus, and this is what I want to do here.
 
+## Getting started
+
 ```{r}
 if (!"manifestoR" %in% unname(installed.packages()[,"Package"])){
   install.packages("manifestoR")
@@ -20,14 +22,21 @@ library(tokenizers)
 library(dplyr)
 ```
 
-To gain access to the Manifesto Database, you need an API key. 
+
+
+# downloading manifesto dataset
+
+To access to the Manifesto Database, an API key is required. 
 
 ```{r}
 mp_setapikey("~/.credentials/manifesto_api_key.txt")
 ```
 
 
-# downloading manifesto dataset
+
+```{r}
+de <- mp_corpus(countryname == "Germany")
+```
 
 ```{r}
 mpds <- mp_maindataset()
@@ -37,9 +46,6 @@ party_ids <- mpds %>%
 parties <- setNames(party_ids$partyabbrev, party_ids$party)
 ```
 
-```{r}
-de <- mp_corpus(countryname == "Germany")
-```
 
 This is a pretty condensed way to turn this into a tibble.
 
@@ -56,34 +62,27 @@ df <- data.frame(
 
 
 ```{r}
-tok <- lapply(
-  df$txt,
-  function(txt){
-    tokenize_words(
-      x = unname(unlist(tokenize_sentences(x = txt))),
-      lowercase = FALSE, strip_punct = FALSE
-    )
-  }
-)
-```
+sentences <- tokenize_sentences(df$txt)
+tok <- lapply(sentences, tokenize_words, lowercase = FALSE, strip_punct = FALSE)
+body <- lapply(tok, function(doc) unlist(lapply(doc, function(s) c("<s>", s, "</s>"))))
 
-```{r}
-body <- lapply(tok, function(x) paste(sprintf("<s>\n%s\n</s>\n", sapply(x, paste, collapse = "\n")), collapse = "\n"))
-xml <- paste(
-  sprintf(
-    "<text party_id='%s' party='%s' date='%s' language='%s'>\n%s\n</text>",
-    df$party_id, df$party, df$date, df$language, body
-  ),
-  collapse = "\n"
-)
+tags <- sprintf(
+    "<text party_id='%s' party='%s' date='%s' language='%s'>",
+    df$party_id, df$party, df$date, df$language
+  )
+xml <- mapply(c, tags, body, rep("</text>", times = length(tags)))
 ```
-
 
 ```{r}
 vrt_dir <- file.path(tempdir(), "vrt")
 dir.create(vrt_dir)
-cat(xml, file = file.path(vrt_dir, "manifestos.vrt"))
 ```
+
+```{r}
+writeLines(text = unlist(xml), con = file.path(vrt_dir, "manifestos.vrt"))
+```
+
+Faster alternatives here are `readr::write_lines()` or `data.table::fwrite()`.
 
 ```{r}
 data_dir <- file.path(tempdir(), "data_dir")
@@ -101,12 +100,13 @@ cwb_encode(
   encoding = "utf8",
   p_attributes = "word",
   s_attributes = list(text = c("party_id", "party", "date", "language"), s = character()),
+  verbose = FALSE, quietly = TRUE
 )
 
 p_attr <- "word"
-cwb_makeall(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry())
-cwb_huffcode(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry())
-cwb_compress_rdx(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry())
+cwb_makeall(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry(), quietly = TRUE)
+cwb_huffcode(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry(), quietly = TRUE)
+cwb_compress_rdx(corpus = "MANIFESTOS", p_attribute = p_attr, registry = registry(), quietly = TRUE)
 ```
 
 ```{r}
@@ -114,7 +114,7 @@ cl_load_corpus(corpus = "MANIFESTOS", registry = registry())
 cqp_load_corpus(corpus = "MANIFESTOS", registry = registry())
 ```
 
-This is a rudimentary check (using low-level RcppCWB functions) whether to corpus can be used. How often does the token "pride" occur?
+This is a rudimentary check (using low-level RcppCWB functions) whether to corpus can be used. How often does a token occur?
 
 ```{r}
 polmineR::count("MANIFESTOS", query = "Digitalisierung", )
