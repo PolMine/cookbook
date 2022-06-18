@@ -1,0 +1,98 @@
+---
+title: "Train word2vec model on CWB corpus"
+output: html_document
+date: '2022-06-18'
+---
+
+## Objective
+  
+Export indexed CWB corpus to data input format required by word2vec algorithm
+and train model.
+
+## Dependencies / packages uses
+
+Note on the packages/tools used:
+
+- Corpus data is assumed to be in the indexed CWB format as digested by [polmineR](https://github.com/PolMine/polmineR). Make sure you use current 
+development version, v0.8.6.9004 or higher: It has very useful performance tweaks
+for large datasets.
+
+```{r, eval = FALSE}
+devtools::install_github("PolMine/polmineR")
+```
+  
+- [word2vec](https://CRAN.R-project.org/package=word2vec) is an alternative to
+the [wordVectors](https://github.com/bmschmidt/wordVectors) package used here, 
+but we think that wordVectors is very usable and well maintained.
+
+```{r, eval = FALSE}
+devtools::install_github("bmschmidt/wordVectors")
+```
+
+- The [readr](https://CRAN.R-project.org/package=readr) package is impressively
+efficient to write a big character vector to disk.
+
+- Parallelization is really useful for large data. We use the *parallel* package
+to detect the number of cores that are available.
+
+```{r}
+library(polmineR)
+library(wordVectors) # devtools::install_github("bmschmidt/wordVectors")
+library(readr)
+library(parallel)
+```
+
+
+# Settings
+
+We use toy data here that is too small to yield a reasonable result. Replace.
+
+```{r, message = FALSE}  
+use("RcppCWB") # to make REUTERS sample corpus available
+corpus_id <- "REUTERS" # insert your corpus here
+split_by <- "id" # modify - the structural attribute for splitting up the corpus
+```
+
+```{r}
+file_out <- tempfile(fileext = ".txt")
+vectors_bin <- tempfile(fileext = ".bin") # maintain the .bin ending!
+```
+
+```{r}
+cores <- detectCores() - 1L
+```
+
+
+## Write corpus data to disk
+
+```{r, message = FALSE, results = 'hide'}
+corpus(corpus_id) %>%
+  split(s_attribute = split_by, mc = cores, progress = interactive()) %>% 
+  get_token_stream(p_attribute = "word", progress = interactive(), collapse = " ") %>%
+  write_lines(file = file_out)
+```
+
+
+## Train word2vec model
+
+```{r, results = 'hide', echo = TRUE, message = FALSE}
+train_word2vec(
+  file_out,
+  vectors_bin,
+  vectors = 200,
+  threads = cores,
+  window = 12,
+  iter = 5,
+  negative_samples = 0
+)
+```
+
+## Result
+
+```{r, message = FALSE, results = 'hide'}
+model <- wordVectors::read.binary.vectors(vectors_bin)
+wordVectors::closest_to(model, "oil")
+```
+
+The REUTERS example dataset is too small for a good result. Enjoy word2vec
+with your big real-world data!
