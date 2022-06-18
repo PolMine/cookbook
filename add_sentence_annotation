@@ -1,0 +1,32 @@
+```r
+library(cwbtools)
+
+cwbtools::corpus_install(
+  doi = "10.5281/zenodo.3823245",
+  registry_dir = Sys.getenv("CORPUS_REGISTRY"),
+  verbose = FALSE
+)
+
+library(polmineR)
+
+pos <- get_token_stream("GERMAPARLSAMPLE", p_attribute = "pos")
+
+cpos_vec <- 0L:(size("GERMAPARLSAMPLE") - 1L)
+sentence_end <- grep("\\$\\.", pos)
+sentence_factor <- cut(x = cpos_vec, breaks = c(0L, sentence_end), include.lowest = TRUE, right = FALSE)
+sentences_cpos <- unname(split(x = cpos_vec, f = sentence_factor))
+region_matrix <- do.call(rbind, lapply(sentences_cpos, function(cpos) c(cpos[1L], cpos[length(cpos)])))
+
+s_attribute_encode(
+  values = as.character(seq.int(from = 0L, to = nrow(region_matrix) - 1L)),
+  data_dir = registry_file_parse(corpus = "GERMAPARLSAMPLE")[["home"]],
+  s_attribute = "s",
+  corpus = "GERMAPARLSAMPLE",
+  region_matrix = region_matrix,
+  method = "R",
+  registry_dir = Sys.getenv("CORPUS_REGISTRY"),
+  encoding = registry_file_parse(corpus = "GERMAPARLSAMPLE")[["properties"]][["charset"]],
+  delete = TRUE,
+  verbose = FALSE
+)
+```
