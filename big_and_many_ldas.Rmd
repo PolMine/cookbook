@@ -1,0 +1,237 @@
+---
+title: "Searching the Super Topic Model - Update"
+author: "Andreas Blaette, Christoph Leonhardt"
+date: "`r Sys.Date()`"
+bibliography: "`r path.expand('~/Lab/github/cookbook/references.bib')`"
+editor_options: 
+  chunk_output_type: console
+---
+
+## System requirements
+
+- The code in this recipe has been developed on macOS and is expected to run on
+Linux systems. Whether it works on Windows has not yet been tested.
+
+- We use the parallelized approach of [Mallet](https://mimno.github.io/Mallet/index)
+for efficiently calculating a set of LDA topic models.
+
+```{r, eval = TRUE}
+(cores_to_use <- parallel::detectCores() - 1L)
+```
+
+- Computing topic models may require a lot of RAM. Matrix operations when
+calculating metrics for topics are particularly excessive. Allocate a lot of 
+memory to the Java Virtual Machine (JVM) before loading the rJava package.
+
+```{r, eval = FALSE}
+options(java.parameters = "-Xmx28g")
+```
+
+- Even a lot of RAM may not be enough for keeping several big LDA models in
+memory at the same time. So we store LDA models on disc, which is also a good 
+idea for later usage if the process breaks for any reason. Note that the size 
+of the model can be several hundred megabytes, or 1 GB and more - depending on 
+the size of the data. Make sure you have sufficient disk space.
+
+```{r, eval = TRUE}
+outdir <- "~/Data"
+```
+
+
+## Loading packages and R configuration 
+
+- The data we use is a CWB indexed corpus. We use the polmineR package to 
+access the data
+
+```{r, eval = TRUE}
+library(polmineR) # get dev version, minimum v0.8.6.9008
+```
+
+- To access the parallelized topic model of Mallet, we have written the biglda
+R package. It includes an installation mechanism to get the Mallet Java code.
+
+```{r, eval = TRUE}
+library(biglda) # get dev version from PolMine/biglda, minimum v0.0.0.9006
+if (!mallet_is_installed()) mallet_install()
+```
+
+- For robust file operations, we like to use functionality from the
+[fs](https://CRAN.R-project.org/package=fs) package.
+
+```{r, eval = TRUE}
+library(fs)
+```
+
+- Finally, we use the visualisation of topic model metrics of the
+[ldatuning](https://CRAN.R-project.org/package=ldatuning) package. Note that the
+biglda package includes the implementation of more efficient calculations for
+the metrics used.
+
+```{r}
+library(ldatuning)
+```
+
+- Concerning configuration, note that the computation of metrics benefits 
+substantially from the installation of a BLAS optimized for your system. See [this](https://cran.r-project.org/bin/macosx/RMacOSX-FAQ.html) instruction for
+using the optimized BLAS on macOS.
+
+
+## Defining the input documents 
+
+### Get speeches as character vectors
+
+- We use speeches covered by theGermaParl corpus (beta version) as an example.
+To be more precise, we use a subset covering the period between 1987 and 2021.
+
+- Here we choose to split up the corpus into speeches with a gap of 50. We end
+up with more shorter speeches than with the default gap of 500 which
+concatenates more utterances from the same speaker.
+
+- We apply a minimum length: The substantive argument would be that short
+documents are probably not topical, for example because they are mainly from
+presidential speakers and thus procedural. The technical argument would be that
+they do contain little information and thus the model's inference could be
+random.
+
+- Often, min_length of 100 seems alright if removing more procedural utterances
+is the goal. Empirically: min_length of 100L removes about half the speeches
+which is more or less expected when every other speech is the introduction of a
+new speaker by the president. To keep some of the more substantial short
+contributions here, we set this value to 50 for now, given the shorter gap.
+Interestingly, this still filters out about a half of the speeches, perhaps
+indicating a break-off point here which splits longer substantive speeches and
+shorter ones.
+
+
+```{r make_speeches, echo = FALSE, eval = FALSE}
+speeches <- corpus("GERMAPARL_BETA") %>%
+  as.speeches(
+    s_attribute_name = "speaker",
+    subset = {date >= as.Date("1987-01-01")},
+    gap = 50, # gap is 500 by default
+    mc = cores_to_use
+  ) %>% 
+  get_token_stream(p_attribute = "word", min_length = 50L, collapse = " ")
+```
+
+### Define stopwords
+
+- There is a debate if, how and when to remove stopwords before fitting topic
+models [e.g. @schofield-etal-2017-pulling]. Here, we remove some stopwords,
+mainly to speed up the estimation and to somewhat minimize potential memory
+limitations associated with larges matrices.
+
+- The stopword list we use is based on the German stopword list in the tm R
+package [@tm].
+
+```{r, eval = FALSE}
+## Get German Stopwords 
+stopwords <- c(
+  tm::stopwords("de"),
+  paste(
+    toupper(substr(tm::stopwords("de"), 1, 1)),
+    substr(tm::stopwords("de"), 2, nchar(tm::stopwords("de"))),
+    sep = ""
+  )
+)
+
+punctuation_to_drop <- grep(
+  "^[[:punct:]]+$",
+  terms("GERMAPARL_BETA", p_attribute = "word"),
+  value = TRUE,
+  perl = TRUE
+)
+
+terms_to_drop <- c(
+  stopwords,
+  punctuation_to_drop,
+  c("dass", "Dass", "Damen", "Herren", "Beifall")
+)
+```
+
+
+### Creating the Instance List
+
+- Everything is ready and set now to transfer the data to Java
+
+```{r make instance_list}
+instance_list <- as.instance_list(speeches, stopwords = terms_to_drop)
+rm(speeches); gc()
+```
+
+
+### Fitting Topic Models
+
+```{r fit_models, eval = FALSE}
+for (k in c(200, 250, 300, 350, 450, 500)){
+  message("... fitting model for k: ", k)
+  fname <- sprintf("%s_%s_%s.bin", "GERMAPARL_BETA", Sys.Date(), k)
+  outfile <- path.expand(fs::path(outdir, fname))
+  
+  lda <- BigTopicModel(n_topics = k, alpha_sum = 5.1, beta = 0.1)
+  lda$addInstances(instance_list)
+  lda$setNumThreads(cores_to_use)
+  lda$setNumIterations(2000L)
+  lda$setTopicDisplay(100L, 10L) 
+  lda$estimate()
+  lda$write(rJava::.jnew("java/io/File", outfile))
+  rm(lda)
+}
+```
+
+
+## Evaluating topic models
+
+```{r calc_metrics, eval = FALSE}
+metrics <- lapply(
+  Sys.glob(fs::path(outdir, "*.bin")),
+  function(fname){
+    rJava::J("java/lang/Runtime")$getRuntime()$gc()
+    
+    message("... reading: ", fname)
+    mallet_model <- mallet_load_topicmodel(fname)
+    
+    message("cao")
+    cao2009 <- FastCao2009(mallet_model)
+    
+    message("deveaud")
+    deveaud2014 <- FastDeveaud2014(mallet_model, cl = cores_to_use)
+    
+    message("arun")
+    arun2010 <- FastArun2010(mallet_model)
+    
+    data.frame(
+      Cao2009 = cao2009,
+      Deveaud2014 = deveaud2014,
+      Arun2010 = arun2010
+    )
+  }
+)
+model_metrics <- do.call(rbind, metrics)
+model_metrics$topics <- as.integer(gsub("^.*_(\\d+)\\.bin$", "\\1", Sys.glob(fs::path(outdir, "*.bin"))))
+model_metrics <- model_metrics[, c("topics", "Cao2009", "Deveaud2014", "Arun2010")]
+write.table(x = model_metrics, file = fs::path(outdir, "model_metrics.csv"))
+```
+
+```{r, eval = TRUE}
+if (!exists("model_metrics")) model_metrics <- read.table(file = fs::path(outdir, "model_metrics.csv"))
+ldatuning::FindTopicsNumber_plot(model_metrics)
+```
+
+
+## Annex: Data transformation
+
+```{r, eval = FALSE}
+for (fname in Sys.glob(fs::path(outdir, "*.bin"))){
+  message("... reading: ", fname)
+  mallet_model <- mallet_load_topicmodel(fname)
+  
+  message("... processing model")
+  lda <- as_LDA(mallet_model)
+  
+  ldafile <- sprintf("%s.rds", tools::file_path_sans_ext(fname))
+  message("... writing: ", ldafile)
+  saveRDS(lda, file = ldafile)
+}
+```
+
