@@ -1,0 +1,57 @@
+---
+title: "Using Rauh's sentiment dictionary"
+output: html_document
+date: '2022-08-09'
+---
+
+## Prerequisites
+
+```{r}
+library(fs)
+library(data.table)
+library(polmineR)
+library(magrittr)
+```
+
+
+## Building the dictionary
+
+```{r}
+dataverse_url <- "https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/BKBXWD/PQPNDM"
+```
+
+
+
+```{r}
+zipfile <- tempfile(fileext = ".zip")
+download.file(url = dataverse_url, destfile = zipfile)
+unzip(zipfile = zipfile, exdir = tempdir())
+
+dict_dir <- path(tempdir(), "JITP-Replication-Final", "1_Dictionaries")
+
+tsv_negative <- path(dict_dir, "GermanPolarityClues-Negative-21042012.tsv")
+negative <- fread(tsv_negative, sep = "\t", header = FALSE)[,1:4]
+colnames(negative) <- c("word", "lemma", "pos", "polarity")
+negative[, "weight" := -1L]
+
+tsv_positive <- path(dict_dir, "GermanPolarityClues-Positive-21042012.tsv")
+positive <- fread(tsv_positive, sep = "\t", header = FALSE)[,1:4]
+colnames(positive) <- c("word", "lemma", "pos", "polarity")
+positive[, "weight" := 1L]
+
+dict <- rbindlist(list(
+  positive[, c("word", "weight")], negative[, c("word", "weight")]
+))
+```
+
+
+## Applying weights
+
+```{r}
+pb <- context("GERMAPARL", query = "Islam", p_attribute = "word") %>%
+  partition_bundle(node = FALSE) %>%
+  set_names(s_attributes(., s_attribute = "date"))
+
+weighed <- weigh(pb, with = dict)
+y <- summary(weighed)
+```
