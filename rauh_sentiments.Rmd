@@ -1,7 +1,9 @@
 ---
 title: "Using Rauh's sentiment dictionary"
 output: html_document
-date: '2022-08-09'
+date: '2022-08-15'
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## Prerequisites
@@ -9,49 +11,149 @@ date: '2022-08-09'
 ```{r}
 library(fs)
 library(data.table)
-library(polmineR)
+library(polmineR) # at least 0.8.6.9012 (2022-08-15)
 library(magrittr)
+library(zoo)
 ```
 
 
 ## Building the dictionary
 
+This is the persistent URL at Harvard Dataverse from where we can get a zipped 
+archive with Rauh's replication data including the dictionary.
+
 ```{r}
 dataverse_url <- "https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/BKBXWD/PQPNDM"
 ```
 
-
+We download the zipfile to a temporary directory and extract files.
 
 ```{r}
 zipfile <- tempfile(fileext = ".zip")
 download.file(url = dataverse_url, destfile = zipfile)
 unzip(zipfile = zipfile, exdir = tempdir())
+```
 
+We find tab separated files with positive/negative terms in the following
+subdirectory.
+
+```{r}
 dict_dir <- path(tempdir(), "JITP-Replication-Final", "1_Dictionaries")
+```
 
+We read terms with negative polarity and assign a negative weight.
+
+```{r}
 tsv_negative <- path(dict_dir, "GermanPolarityClues-Negative-21042012.tsv")
 negative <- fread(tsv_negative, sep = "\t", header = FALSE)[,1:4]
 colnames(negative) <- c("word", "lemma", "pos", "polarity")
 negative[, "weight" := -1L]
+```
 
+The same for terms with positive polarity.
+
+```{r}
 tsv_positive <- path(dict_dir, "GermanPolarityClues-Positive-21042012.tsv")
 positive <- fread(tsv_positive, sep = "\t", header = FALSE)[,1:4]
 colnames(positive) <- c("word", "lemma", "pos", "polarity")
 positive[, "weight" := 1L]
+```
 
+We combine both tables into one `data.table` object.
+
+```{r}
 dict <- rbindlist(list(
   positive[, c("word", "weight")], negative[, c("word", "weight")]
 ))
 ```
 
+The experimental package [quanteda.sentiment](https://github.com/quanteda/quanteda.sentiment)
+includes the dictionary, 
+
 
 ## Applying weights
 
 ```{r}
-pb <- context("GERMAPARL", query = "Islam", p_attribute = "word") %>%
+weighed <- context("GERMAPARL", query = "Islam", p_attribute = "word") %>%
   partition_bundle(node = FALSE) %>%
-  set_names(s_attributes(., s_attribute = "date"))
-
-weighed <- weigh(pb, with = dict)
-y <- summary(weighed)
+  set_names(s_attributes(., s_attribute = "date")) %>%
+  weigh(with = dict) %>%
+  summary()
 ```
+
+... and prepare to aggregate ...
+
+```{r}
+weighed[["month"]] <- zoo::as.yearmon(as.Date(weighed[["name"]]))
+weighed[["qtr"]] <- zoo::as.yearqtr(as.Date(weighed[["name"]]))
+weighed[["year"]] <- as.Date(format(as.Date(weighed[["name"]]), "%Y-01-01"))
+weighed <- weighed[!is.na(weighed$month),]
+
+weighed_min <- weighed[, c("size", "unique", "positive_n", "negative_n")]
+```
+
+... by month ...
+
+```{r}
+aggr_month <- aggregate(weighed_min, by = list(month = weighed$month), FUN = "sum")
+aggr_month$positive_share <- aggr_month$positive_n / aggr_month$size
+aggr_month$negative_share <- aggr_month$negative_n / aggr_month$size
+z <- zoo(aggr_month[, c("positive_share", "negative_share")], order.by = aggr_month$month)
+plot(
+  z,
+  ylim = c(0, max(z$positive_share, z$negative_share)),
+  main = "aggregation by month"
+)
+```
+
+... by quarter ...
+
+```{r}
+aggr_qtr <- aggregate(weighed_min, by = list(month = weighed$qtr), FUN = "sum")
+aggr_qtr$positive_share <- aggr_qtr$positive_n / aggr_qtr$size
+aggr_qtr$negative_share <- aggr_qtr$negative_n / aggr_qtr$size
+z <- zoo(aggr_qtr[, c("positive_share", "negative_share")], order.by = aggr_qtr$month)
+plot(
+  z,
+  ylim = c(0, max(z$positive_share, z$negative_share)),
+  main = "aggregation by quarter"
+)
+```
+
+... by year.
+
+```{r}
+aggr_year <- aggregate(weighed_min, by = list(month = weighed$year), FUN = "sum")
+aggr_year$positive_share <- aggr_year$positive_n / aggr_year$size
+aggr_year$negative_share <- aggr_year$negative_n / aggr_year$size
+z <- zoo(aggr_year[, c("positive_share", "negative_share")], order.by = aggr_year$month)
+plot(
+  z,
+  ylim = c(0, max(z$positive_share, z$negative_share)),
+  main = "aggregation by year"
+)
+```
+
+
+## Excluding negations
+
+So where to go from here? Rauh argues that negated polarity cues should not be 
+counted as positve or negative, respectively. Starting with polmineR v0.8.6.9012,
+a function can be used for filtering match contexts as follows.
+
+```{r}
+.fn <- function(x){
+  negations <- c("nicht", "nichts", "kein", "keine", "keinen")
+  if (x[position == -1L][["word"]] %in% negations) NULL else x
+}
+
+weighed <- context("GERMAPARL", query = "Islam", p_attribute = "word") %>%
+  enrich(p_attribute = "word", decode = TRUE) %>%
+  trim(fn = .fn) %>%
+  partition_bundle(node = FALSE) %>%
+  set_names(s_attributes(., s_attribute = "date")) %>%
+  weigh(with = dict) %>%
+  summary()
+```
+
+We leave it up to you to figure out whether this makes a big difference!
