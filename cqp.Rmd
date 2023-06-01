@@ -1,10 +1,16 @@
 ---
 title: "Cooking with GermaParl"
 date: "2023-06-01"
-output: ioslides_presentation
+output: 
+  xaringan::moon_reader:
+    css: ["./css/default.css", "./css/metropolis.css", "./css/robot-fonts.css", './css/polminify.css']
+    nature:
+      countIncrementalSlides: false
+editor_options: 
+  chunk_output_type: console
 ---
 
-```{r libraries, echo = FALSE}
+```{r libraries, echo = FALSE, message = FALSE, warning = FALSE}
 library(DiagrammeR)
 library(xml2)
 library(kableExtra)
@@ -13,19 +19,20 @@ library(dplyr)
 library(purrr)
 ```
 
+# Data formats and structures
 
-## Data formats and structures{.smaller}
+* TEI-inspired XML: <br/>https://github.com/PolMine/GermaParlTEI
+* Corpus Workbench (CWB): <br/>https://zenodo.org/record/7949074
 
-### Data formats{.smaller}
+The CWB data is indexed and linguistically annotated!
 
-* TEI-inspired XML: https://github.com/PolMine/GermaParlTEI
-* Corpus Workbench (CWB): https://zenodo.org/record/7949074 (indexed and linguistically annotated)
+See the [landing page at Zenodo](https://zenodo.org/record/7949074) for further installation instructions!
 
 ---
 
-### Data Preparation{.smaller}
+# Data Preparation Workflow
 
-```{r make_diagrammeR", echo = FALSE}
+```{r make_diagrammeR", echo = FALSE, fig.width = 11}
 grViz("
   digraph {
   graph [layout = dot, rankdir = LR, nodesep = 0.5]
@@ -58,7 +65,7 @@ PARSE -> XML -> ENRICH-> XML2 -> ANNOTATE -> VRT -> ENCODE -> CWB
 
 ---
 
-## XML/TEI{.smaller}
+# XML/TEI
 
 * structural annotation (metadata on document and speaker level)
 * quasi standardization, inspired by the standards of the Text Encoding Initiative
@@ -71,7 +78,7 @@ xml2::read_xml(x = "~/Lab/github/GermaParlTEI/01/BT_01_003.xml") %>%
 
 ---
 
-## Linguistic Annotation in the Verticalized Text format (VRT){.smaller}
+# The Verticalized Text format (VRT)
 
 * linguistically annotated "verticalized text" (tab separated and annotated with XML tags)
 * see Corpus Encoding Manual (https://cwb.sourceforge.io/files/CWB_Encoding_Tutorial/)
@@ -87,9 +94,7 @@ xml2::read_xml("~/Lab/tmp/GermaParl2/vrt/BT_01_003.vrt") %>%
 
 ---
 
-## Linguistic Annotation in GermaParl{.smaller}
-
-### Positional attributes{.smaller}
+# Positional attributes
 
 Attributes at the token level are *positional attributes*:
 
@@ -98,14 +103,15 @@ Attributes at the token level are *positional attributes*:
 * upos: Part-of-Speech-Annotation #2 (Universal Dependencies Tagset)
 * lemma: Lemmatized form of the token
 
-```{r sample_ts, echo = FALSE}
+```{r sample_ts, echo = FALSE, message = FALSE}
 sample_ts <- partition("GERMAPARL2", protocol_date = "1949-09-15") %>%
   polmineR::decode(
     s_attributes = character(), 
     p_attributes = c("word", "xpos", "upos", "lemma"),
-    to = "data.table"
+    to = "data.table",
+    verbose = FALSE
   ) %>%
-  .[1:10]
+  .[1:5]
 
 knitr::kable(
   sample_ts, 
@@ -118,7 +124,7 @@ knitr::kable(
 
 ---
 
-### Structural attributes{.smaller}
+# Structural attributes
 
 Aside from annotation on token level, sentences, paragraps and named entities are linguistically annotated. These can comprise more than one token and thus are annotated as *structural attributes*. The relevant structural attributes are:
 
@@ -130,37 +136,51 @@ Aside from annotation on token level, sentences, paragraps and named entities ar
 The `p` and `s` annotation layers can be used to subset the corpus based on sentences and paragraphs or to set boundaries for analyses like `kwic()`.
 
 ---
+# Structural attributes of GermaParl
 
-## Working with linguistic annotations {.smaller}
+```{r}
+corpus("GERMAPARL2") %>% tree_structure() # dev version of polmineR required
+```
+---
 
-### CQP: The corpus query processor{.smaller}
+# CQP: The corpus query processor
 
-`polmineR` exposes the powerful CQP query language to query CWB corpora. Using the CQP syntax, the linguistic annotation layers are accessible. The CWB development team provides a comprehensive handbook (https://cwb.sourceforge.io/files/CQP_Manual.pdf).
+`polmineR` exposes the powerful CQP query language to query CWB corpora. Using the CQP syntax, the linguistic annotation layers are accessible. The CWB development team provides a [comprehensive handbook](https://cwb.sourceforge.io/files/CQP_Manual.pdf).
+
+To be distinguished:
+
+- CQP command line tool
+- RcppCWB 
+- polmineR
 
 ---
 
-### Regular expressions
-
-Simple regular queries work on the surface form of the token, i.e. the word...
+# CQP and regular expressions
 
 ```{r kwic_regular}
 corpus("GERMAPARL2") |>
-  kwic(query = "Transformation", s_attribute = "protocol_date")
+  kwic(
+    query = '"[Dd]emokratisch.*"',
+    cqp = TRUE,
+    s_attribute = "protocol_date"
+  ) 
 ```
 
 
 ---
 
-### Accessing positional attributes
+# Positional attributes
 
-... the CQP syntax allows to specify the positional attribute like so:
+... the CQP syntax allows to specify the positional attribute:
 
 ```{r kwic_cqp_1}
 corpus("GERMAPARL2") |>
-  kwic(query = '[word = "Transformation"]', s_attribute = c("protocol_lp", "protocol_no"))
+  kwic(query = '[word = "[dD]emokratisch.*"]', s_attribute = "protocol_date")
 ```
 
 ---
+
+# Positional attributes
 
 Note the single quotation marks around the entire query as well as the squared brackets.
 
@@ -170,42 +190,53 @@ While the German word for "Fliege" is ambivalent (just like the English word) wh
 
 ```{r kwic_comp_1}
 corpus("GERMAPARL2") |>
-  kwic(query = '[word = "Fliege" & xpos = "V.*"]', s_attribute = c("protocol_lp", "protocol_no"))
+  kwic(
+    query = '[word = "Fliege" & xpos = "V.*"]',
+    s_attribute = c("protocol_lp", "protocol_no")
+  )
 ```
 
 ```{r kwic_comp_2}
 corpus("GERMAPARL2") |>
-  kwic(query = '[word = "Fliege" & xpos = "N.*"]', s_attribute = c("protocol_lp", "protocol_no"))
+  kwic(
+    query = '[word = "Fliege" & xpos = "N.*"]',
+    s_attribute = c("protocol_lp", "protocol_no")
+  )
 ```
 
 ---
 
-## CQP processor and advanced queries{.smaller}
+# CQP and advanced queries
 
 CQP queries can be more complex and work for most `polmineR` methods.
 
 ```{r count_1}
 corpus("GERMAPARL2") |>
-  count(query = '[xpos = "AD.*"] [word = "Transformation"]',
-        breakdown = TRUE)
+  polmineR::count(
+    query = '"freiheitlich" "-" [lemma = "demokratisch"] "Grundordnung"',
+    breakdown = TRUE
+  ) |>
+  as.data.frame()
 ```
 
 The manual does provide some even more advanced queries. 
 
-```{r count_2}
+```{r count_2, eval = FALSE}
 corpus("GERMAPARL2") |>
-  subset(protocol_lp %in% c(5, 6)) |>
-  count(query = '(?longest)[xpos = "V.*"] []{0,5} [word = "Transformation"]',
-        breakdown = TRUE)
+  subset(protocol_lp %in% 5:6) |>
+  count(
+    query = '(?longest)[xpos = "V.*"] []{0,5} [word = "Transformation"]',
+    breakdown = TRUE
+  )
 ```
 
 ---
 
-#### Linguistic Annotations in structural attributes{.smaller}
+# CQP and structural attributes
 
 Linguistic annotations can be used in structural attributes as well.
 
-```{r count_ner}
+```{r count_ner, eval = FALSE}
 corpus("GERMAPARL2") |>
   polmineR::count(
     query = '/region[ne_type,a]::a.ne_type="ORGANIZATION"',
@@ -216,10 +247,40 @@ corpus("GERMAPARL2") |>
 
 ---
 
-It can be used to subset the corpus as well. In the following example, the type of the paragraph is used to include only the contents of actual speeches and not other stage comments.
+# Counting Named Entities
 
-```{r subset}
-speech_only <- corpus("GERMAPARL2") |>
-  subset(p_type == "speech") |>
-  subset(speaker_name == "Angela Merkel")
+```{r, eval = FALSE}
+x <- corpus("GERMAPARL2") %>% 
+  subset(ne_type = "PERSON") %>% 
+  get_token_stream(p_attribute = "word") %>% 
+  table()
 ```
+
+---
+
+# A time-series plot
+
+```{r, message = FALSE}
+library(dplyr)
+library(xts)
+library(lubridate) # we need lubridate::floor_date()
+
+look_up <- '"freiheitlich" "-" [lemma = "demokratisch"] "Grundordnung"'
+
+corpus("GERMAPARL2") %>% 
+  dispersion(query = look_up, cqp = TRUE, s_attribute = "protocol_date") %>%
+  as_tibble() %>%
+  mutate(date = as.Date(protocol_date)) %>%
+  mutate(month = floor_date(date, unit = "quarter")) %>%
+  filter(!is.na(month)) %>%
+  select(count, month) %>%
+  group_by(month) %>%
+  summarise(sum = sum(count)) %>%
+  as.xts(x = .$sum, order.by = .$month) %>%
+  plot(
+    main = "'FDGO' in Bundestag Plenary Debates (N/quarter)",
+    xlab = "total per quarter",
+    ylim = c(0, 40), type = "h", col = "darkblue", main.timespan = FALSE
+  )
+```
+
