@@ -11,8 +11,6 @@ editor_options:
 ---
 
 ```{r libraries, echo = FALSE, message = FALSE, warning = FALSE}
-library(xml2)
-library(kableExtra)
 library(polmineR)
 ```
 
