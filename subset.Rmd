@@ -1,0 +1,179 @@
+---
+title: "Cooking with GermaParl"
+date: "2023-06-29"
+output: 
+  xaringan::moon_reader:
+    css: ["./css/default.css", "./css/metropolis.css", "./css/robot-fonts.css", './css/polminify.css']
+    nature:
+      countIncrementalSlides: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r libraries, echo = FALSE, message = FALSE, warning = FALSE}
+library(xml2)
+library(kableExtra)
+library(polmineR)
+```
+
+# Purpose and Motivation
+
+The creation of meaningful subsets or **subcorpora** of GermaParl enables researchers to
+* focus on specific slices of the data 
+* conduct diachronic analyses (changing patterns over time: dates, years, legislative periods)
+* conduct synchronic analyses (difference between speakers and groups: speaker, parliamentary group, party, role)
+
+
+But also focus on specific parts of the text
+* speeches
+* stage comments
+* named entities
+
+---
+
+# Foundation: Structural Annotation
+
+Subsetting is made possible by the *structural annotation* of the corpus.
+
+Use `s_attributes()` to find out, which structural attributes are available.
+
+```{r print_s_attributes}
+s_attributes("GERMAPARL2")
+```
+
+To see which values these attributes can have, use the function with the attribute name.
+
+```{r print_year}
+s_attributes("GERMAPARL2", "protocol_year") |>
+  head()
+```
+
+---
+
+# Creating Subcorpora with subset()
+
+In polmineR, a central function to create **subcorpora** is the `subset()` function.
+
+To create a subcorpus object based on the initial corpus, select the structural attribute as well as its desired value. For example all debates in 1949:
+
+```{r subset_year, eval = FALSE}
+subset("GERMAPARL2", protocol_year == 1949)
+```
+
+**Note**: Passing the name of the corpus as a `character vector` is a shortcut. Passing a `corpus` object instead is more explicit.
+
+```{r subset_year_pipe, eval = FALSE}
+corpus("GERMAPARL2") |>
+  subset(protocol_year == 1949)
+```
+
+`subset()` can be applied to a subcorpus as well. In addition, the creation of more complex slices of the corpus also works by chaining multiple calls to `subset()` as a "pipe":
+
+```{r subset_pipe, eval = FALSE}
+corpus("GERMAPARL2") |>
+  subset(protocol_year == 1949) |>
+  subset(speaker_parlgroup == "FDP")
+```
+
+---
+
+# Creating Subcorpora with subset()
+
+`subset()` allows for different additional ways to create a **subcorpus**, supporting non-standard evaluation.
+
+Using `subset()` with `grepl()`:
+
+```{r subset_grep}
+germaparl_merkel <- corpus("GERMAPARL2") |>
+  subset(grepl("Merkel", speaker_name))
+
+s_attributes(germaparl_merkel, "speaker_name")
+```
+
+</br>
+
+Using `subset()` with greater than, etc.
+
+```{r subset_greater, eval = FALSE}
+corpus("GERMAPARL2") |>
+  subset(protocol_year >= 2000)
+```
+
+See the documentation of `polmineR` for further examples.
+
+---
+
+# Creating Subcorpus Bundles with split()
+
+`split()` is used to split a corpus or subcorpus object into a bundle of subcorpora by a structural attribute.
+
+For example, the entire corpus can be split into subcorpora representing legislative periods:
+
+```{r split_1}
+corpus("GERMAPARL2") |>
+  split(s_attribute = "protocol_lp")
+```
+
+
+`split()` can also be used for subcorpora.
+
+```{r split_subset, eval = FALSE}
+corpus("GERMAPARL2") |>
+  subset(protocol_lp == 19) |>
+  split(s_attribute = "protocol_no")
+```
+
+---
+
+It is also possible to split a subcorpus.
+
+```{r example, eval = FALSE}
+corpus("GERMAPARL2") |>
+  subset(as.Date(protocol_date) >= as.Date("2020-01-01")) |>
+  split(s_attribute = "protocol_date")
+```
+
+---
+
+# as.speeches()
+
+A natural unit of analysis for a corpus of plenary debates might be a single speech. A bundle of individual speeches can be created by `polmineR` with the special function `as.speeches()`.
+
+```{r as_speeches, eval = FALSE}
+corpus("GERMAPARL2") |>
+  as.speeches(s_attribute_name = "speaker_name",
+              s_attribute_date = "protocol_date")
+```
+
+Aside from `s_attribute_name` and `s_attribute_date`, `as.speeches()` also has an argument called `gap` which controls the number of tokens by which an utterance of the same speaker can be interrupted before it is split into two different speeches.
+
+`as.speeches()` also works for subcorpora.
+
+---
+
+# Speeches and Interjections
+
+Whether a token is part of a speech or part of an interjection can be an important distinction. In GermaParl v2, this information is part of the annotation of paragraphs.
+
+```{r p_type, eval = FALSE}
+corpus("GERMAPARL2") |>
+  subset(p_type == "speech") |>
+  subset(speaker_name == "Angela Merkel")
+```
+
+More technical details about the nested XML structure of the corpus are provided in the [Release Note](https://polmine.github.io/posts/2023/04/03/GermaParl-v2-beta3-Release-Note.html) of GermaParl v2 beta 3 where this and the next example are also discussed.
+
+---
+
+# Subsetting paragraphs and read()
+
+With `read()` it is possible to access formatted full text of a subcorpus. To show the annotated interjections of GermaParl v2, the definition of paragraphs is necessary:
+
+```{r read, eval = FALSE}
+corpus("GERMAPARL2") |>
+  subset(protocol_date == "2001-09-12") |>
+  subset(p) |>
+  read()
+```
+
+See the aforementioned  [Release Note](https://polmine.github.io/posts/2023/04/03/GermaParl-v2-beta3-Release-Note.html) for more technical details.
