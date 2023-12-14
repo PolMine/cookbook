@@ -1,6 +1,6 @@
 ---
-title: "Cooking with GermaParl"
-date: "2023-06-01"
+title: "Cooking with GermaParl: Spicy Queries"
+date: "2023-11-23"
 output: 
   xaringan::moon_reader:
     css: ["./css/default.css", "./css/metropolis.css", "./css/robot-fonts.css", './css/polminify.css']
@@ -14,9 +14,12 @@ editor_options:
 library(DiagrammeR)
 library(xml2)
 library(kableExtra)
-library(polmineR)
 library(dplyr)
 library(purrr)
+```
+
+```{r load_polmineR, echo = FALSE, message = FALSE, warning = FALSE}
+library(polmineR)
 ```
 
 # Data formats and structures
@@ -30,7 +33,7 @@ See the [landing page at Zenodo](https://zenodo.org/record/7949074) for further 
 
 ---
 
-# Data Preparation Workflow
+# GermaParl: Data Preparation Workflow
 
 ```{r make_diagrammeR", echo = FALSE, fig.width = 11}
 grViz("
@@ -68,7 +71,7 @@ PARSE -> XML -> ENRICH-> XML2 -> ANNOTATE -> VRT -> ENCODE -> CWB
 # XML/TEI
 
 * structural annotation (metadata on document and speaker level)
-* quasi standardization, inspired by the standards of the Text Encoding Initiative
+* quasi standardization, inspired by the standards of the Text Encoding Initiative (TEI)
 
 ```{r read_xml, echo = FALSE}
 xml2::read_xml(x = "~/Lab/github/GermaParlTEI/01/BT_01_003.xml") %>%
@@ -252,6 +255,7 @@ corpus("GERMAPARL2") |>
 ```{r, eval = FALSE}
 x <- corpus("GERMAPARL2") %>% 
   subset(ne_type = "PERSON") %>% 
+  split(s_attribute = "ne_type") %>% 
   get_token_stream(p_attribute = "word") %>% 
   table()
 ```
@@ -271,16 +275,16 @@ corpus("GERMAPARL2") %>%
   dispersion(query = look_up, cqp = TRUE, s_attribute = "protocol_date") %>%
   as_tibble() %>%
   mutate(date = as.Date(protocol_date)) %>%
-  mutate(month = floor_date(date, unit = "quarter")) %>%
-  filter(!is.na(month)) %>%
-  select(count, month) %>%
-  group_by(month) %>%
+  mutate(year = floor_date(date, unit = "year")) %>%
+  filter(!is.na(year)) %>%
+  select(count, year) %>%
+  group_by(year) %>%
   summarise(sum = sum(count)) %>%
-  as.xts(x = .$sum, order.by = .$month) %>%
+  as.xts(x = .$sum, order.by = .$year) %>%
   plot(
     main = "'FDGO' in Bundestag Plenary Debates (N/quarter)",
-    xlab = "total per quarter",
-    ylim = c(0, 40), type = "h", col = "darkblue", main.timespan = FALSE
+    xlab = "total per year",
+    ylim = c(0, 100), col = "darkblue", main.timespan = FALSE
   )
 ```
 

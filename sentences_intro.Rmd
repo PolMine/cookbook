@@ -1,0 +1,260 @@
+---
+title: "Cooking with GermaParl"
+date: "2023-12-14"
+output: 
+  xaringan::moon_reader:
+    css: ["./css/default.css", "./css/metropolis.css", "./css/robot-fonts.css", './css/polminify.css']
+    nature:
+      countIncrementalSlides: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r libraries, echo = FALSE, message = FALSE, warning = FALSE}
+library(dplyr)
+library(polmineR)
+```
+
+# Purpose and Motivation
+
+* GermaParl2 comprises **rich structural annotation** on the level of protocols (such as the date or the legislative period) and the level of speakers (such as a speakers name or parliamentary group)
+
+* as seen in previous cookbooks, these can be used to **create meaningful subcorpora** for substantive analysis
+
+* but even beyond that, the corpus contains **annotation below the level of speeches** in forms of paragraph and sentence annotation
+
+* sentences can provide natural **units of analysis** with semantic meaning (for a comprehensive discussion see Däubler et al. 2012)
+
+* sentence annotations can be used for a variety of **use cases**
+
+---
+
+# Encoding of Sentences
+
+* sentences are annotated using **Stanford CoreNLP** (https://stanfordnlp.github.io/CoreNLP/)
+
+* sentences are encoded as the **structural attribute** `s` in GermaParl2
+
+* in contrast to other annotations in GermaParl, the sentence annotation **does not have values**; they describe regions in terms of start and end positions of sentences
+
+* `polmineR` indicates the missing values when called with `s_attributes()`:
+
+```{r}
+s_attributes("GERMAPARL2", "s")
+```
+
+---
+
+# Sentences and the tree structure 
+
+```{r}
+corpus("GERMAPARL2") %>% polmineR::tree_structure()
+```
+
+---
+
+# Splitting Objects into Sentences
+
+`polmineR` makes it easy to split a (sub)corpus into sentences
+
+```{r message = FALSE}
+sentences <- corpus("GERMAPARL2") |>
+  subset(protocol_date == "1949-12-14") |>
+  split(s_attribute = "s", values = FALSE)
+```
+
+* the `values` argument of `split()` makes missing **values** explicit, but this is not strictly necessary
+
+* the output is a bundle of subcorpora, each containing a single sentence
+
+* splitting by sentences can also be done for corpora with sentence annotation (caution: GermaParl2 is quite large)
+
+---
+
+# Splitting Objects into Sentences
+ 
+* subcorpus bundles can be used as usual
+
+* one example would be to decode the sentences as strings in their word order for further analysis
+
+* this could be useful for word embeddings or classification tasks which rely on word order
+
+```{r message = FALSE}
+sentences_ts <- get_token_stream(sentences)
+```
+
+* the sentence annotation is not always perfect though:
+
+```{r}
+sentences_ts[[693]]
+```
+
+```{r}
+sentences_ts[[694]]
+```
+
+---
+
+# Sentence-Term-Matrices
+
+* the sentence bundle can also be used as input to create a **Document-Term-Matrix** (in this case a sentence-term-matrix)
+* potentially useful for **machine learning approaches** which rely on a **Bag-of-Words** representation of sentences
+* examples: Sentence Similarity, Weighting of Terms
+
+```{r message = FALSE}
+dtm <- polmineR::as.DocumentTermMatrix(sentences, p_attribute = "word")
+```
+
+---
+
+# Sentence-Term-Matrices
+
+```{r}
+tm::inspect(dtm)
+```
+
+---
+
+
+# Using Sentences as Context Windows
+
+* the boundaries of sentences can be used to define **context windows** of query terms
+
+* this can be useful to limit the analysis to relevant context words or to identify meaningful multi-word query terms
+
+* `polmineR` provides two ways to make use of the sentence annotation in these scenarios:
+
+#### 1) Sentence Annotation as a `boundary`:
+
+* the maximum number of tokens in the context window is determined by the values of `left` and `right` but the context does not extend over the boundary of a sentence
+
+```{r}
+corpus("GERMAPARL2") |>
+  kwic(query = "Demokratie",
+       boundary = "s",
+       left = 20,
+       right = 20)
+```
+
+---
+
+# Using Sentences as Context Windows
+
+#### 2) Sentence Annotation as Context
+
+* the context window is determined by the **structural attribute** - here `s` - defined by `region` and a number of sentences in `left` and `right`
+  
+```{r}
+corpus("GERMAPARL2") |>
+  kwic(query = "Demokratie",
+       region = "s",
+       left = 0,
+       right = 0)
+```
+
+* the annotation of `left` and `right` determines **additional context** in terms of sentences `s`
+
+* i.e. if `s` = 0, then the context window comprises of the same sentence as the query term
+
+---
+
+# Using Sentences as Context Windows
+
+* changing the values of `left` and `right` to 1 adds one additional sentence as context
+
+```{r}
+corpus("GERMAPARL2") |>
+  kwic(query = "Demokratie",
+       region = "s",
+       left = 1,
+       right = 1)
+```
+
+* this is equivalent to the following syntax:
+
+```{r}
+corpus("GERMAPARL2") |>
+  kwic(query = "Demokratie",
+       left = c("s" = 1),
+       right = c("s" = 1))
+```
+
+---
+
+# Using Sentences as Context Windows
+
+* this also applies to values passed to other parameters such as `positivelist` and `stoplist`: 
+
+```{r}
+corpus("GERMAPARL2") |>
+  kwic(query = "Demokratie",
+       region = "s",
+       left = 0,
+       right = 0,
+       positivelist = "Krise"
+  )
+```
+
+**Note:** Sentences which contain a query term more than once show up in the output of `kwic` more than once
+
+---
+
+# Using Sentences in CQP Queries
+
+* as noted in the CQP manual, "most linguistic queries should include the restriction within s to avoid crossing sentence boundaries" (https://cwb.sourceforge.io/files/CQP_Manual/4_2.html)
+
+* this can be achieved with the syntax used in the following query (results on the next slide)
+
+```{r eval = FALSE}
+sc <- corpus("GERMAPARL2") |> subset(protocol_lp == 15)
+
+count(sc,
+      query = '"Bundesministerium.*" []{1,5} [xpos = "NN"] within s',
+      cqp = TRUE,
+      breakdown = TRUE)
+```
+
+* it has to be noted that this can be computationally expensive and depending on the use case, the differences are subtle
+
+---
+
+# Using Sentences in CQP Queries
+
+```{r echo = FALSE}
+corpus("GERMAPARL2") |>
+  subset(protocol_lp == 15) |>
+  count(query = '"Bundesministerium.*" []{1,5} [xpos = "NN"] within s',
+        cqp = TRUE,
+        breakdown = TRUE) |>
+  head() |>
+  knitr::kable(format = "html",
+               caption = "First five Query Matches in GermaParl2, 15th Legislative Period")
+```
+
+
+---
+
+# Sampling at the sentence level
+
+```{r decode_sentences, echo = TRUE, message = FALSE}
+packageVersion("polmineR")
+
+demsent_ids <- corpus("GERMAPARL2") %>%
+  hits(query = "Demokratie", s_attribute = "s", decode = FALSE) %>%
+  as.data.frame() %>%
+  pull(s)
+
+demsents <- corpus("GERMAPARL2") %>%
+  subset(s %in% !!demsent_ids) %>%
+  split(s_attribute = "s") %>%
+  get_token_stream(p_attribute = "word", collapse = " ")
+```
+
+* write it on disk and use it as input for ... whatsoever!
+
+
+---
+
+# References
+
+Däubler, T., Benoit, K., Mikhaylov, S., & Laver, M. (2012). Natural Sentences as Valid Units for Coded Political Texts. British Journal of Political Science, 42(4), 937–951. http://www.jstor.org/stable/23274173.

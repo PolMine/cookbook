@@ -1,0 +1,111 @@
+---
+title: "Searching the Super Topic Model - Update"
+author: "Andreas Blaette, Christoph Leonhardt"
+date: "`r Sys.Date()`"
+bibliography: "`r path.expand('~/Lab/github/cookbook/references.bib')`"
+editor_options: 
+  chunk_output_type: console
+---
+
+## Initialization and settings
+
+```{r, eval = TRUE}
+options(java.parameters = "-Xmx28g")
+cores_to_use <- parallel::detectCores() - 1L
+outdir <- "~/Lab/tmp/"
+```
+
+```{r, eval = TRUE}
+library(fs)
+library(polmineR) # get dev version, minimum v0.8.6.9008
+library(biglda) # get dev version from PolMine/biglda, minimum v0.0.0.9006
+library(purrr)
+library(stringi)
+if (!mallet_is_installed()) mallet_install()
+```
+
+
+## Define stopwords
+
+```{r stopwords, eval = TRUE}
+stopwords <- c(tm::stopwords("de"), capitalize(tm::stopwords("de")))
+
+punctuation_to_drop <- grep(
+  "^[[:punct:]]+$",
+  terms("GERMAPARL2", p_attribute = "word"),
+  value = TRUE,
+  perl = TRUE
+)
+
+discard <- c(
+  stopwords,
+  punctuation_to_drop,
+  c("dass", "Dass", "Damen", "Herren", "Beifall")
+)
+```
+
+```{r}
+min_doc_length <- 50L
+```
+
+## Get speeches as character vectors
+
+```{r make_speeches, echo = FALSE, eval = FALSE}
+speeches <- corpus("GERMAPARL2") %>%
+  subset(as.integer(protocol_lp) %in% 18:21) %>% 
+  as.speeches(
+    s_attribute_name = "speaker_name",
+    gap = 50, # gap is 500 by default
+    mc = cores_to_use
+  ) %>% 
+  get_token_stream(p_attribute = "word", subset = {!word %in% discard}) %>%
+  keep(function(x) length(x) >= min_doc_length) %>% # drop short documents
+  sapply(stri_c, collapse = "\n") %>%
+  discard(function(x) nchar(x) == 0L) # drop empty documents
+```
+
+
+### Create Instance List
+
+```{r make instance_list}
+instance_list <- as.instance_list(speeches)
+rm(speeches); gc()
+```
+
+
+### Fitting Topic Models
+
+```{r fit_models, eval = FALSE}
+for (k in c(250, 300)){
+  message("... fitting model for k: ", k)
+  fname <- sprintf("%s_%s_%s.bin", "GERMAPARL2", Sys.Date(), k)
+  outfile <- path.expand(fs::path(outdir, fname))
+  
+  lda <- BigTopicModel(n_topics = k, alpha_sum = 5.1, beta = 0.1)
+  lda$addInstances(instance_list)
+  lda$setNumThreads(cores_to_use)
+  lda$setNumIterations(2000L)
+  lda$setTopicDisplay(100L, 10L) 
+  lda$estimate()
+  lda$write(rJava::.jnew("java/io/File", outfile))
+  rm(lda)
+}
+```
+
+
+## Data transformation
+
+```{r, eval = FALSE}
+for (fname in Sys.glob(fs::path(outdir, "*.bin"))){
+  message("... reading: ", fname)
+  mallet_model <- mallet_load_topicmodel(fname)
+  
+  message("... processing model")
+  lda <- as_LDA(mallet_model)
+  
+  ldafile <- sprintf("%s.rds", tools::file_path_sans_ext(fname))
+  message("... writing: ", ldafile)
+  saveRDS(lda, file = ldafile)
+}
+```
+

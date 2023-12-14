@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Cooking with GermaParl</title>
+    <meta charset="utf-8" />
+    <meta name="date" content="2023-06-29" />
+    <script src="subset_files/header-attrs-2.22/header-attrs.js"></script>
+    <link rel="stylesheet" href="css/default.css" type="text/css" />
+    <link rel="stylesheet" href="css/metropolis.css" type="text/css" />
+    <link rel="stylesheet" href="css/robot-fonts.css" type="text/css" />
+    <link rel="stylesheet" href="css/polminify.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+.title[
+# Cooking with GermaParl
+]
+.date[
+### 2023-06-29
+]
+
+---
+
+
+
+
+
+
+# Purpose and Motivation
+
+The creation of meaningful subsets or **subcorpora** of GermaParl enables researchers to
+* focus on specific slices of the data 
+* conduct diachronic analyses&lt;br/&gt;(changing patterns over time: dates, years, legislative periods)
+* conduct synchronic analyses&lt;br/&gt; (difference between speakers and groups: speaker, parliamentary group, party, role)
+
+
+But also focus on specific parts of the text
+* speeches
+* stage comments
+* named entities
+
+---
+
+# Foundation: Structural Annotation
+
+The *structural annotation* of the corpus is the basis for subsetting the data. Use `s_attributes()` to see which structural attributes are available.
+
+
+```r
+s_attributes("GERMAPARL2")
+```
+
+```
+##  [1] "protocol"          "protocol_lp"       "protocol_no"       "protocol_date"    
+##  [5] "protocol_year"     "protocol_url"      "protocol_filetype" "speaker"          
+##  [9] "speaker_who"       "speaker_name"      "speaker_parlgroup" "speaker_party"    
+## [13] "speaker_role"      "p"                 "p_type"            "ne"               
+## [17] "ne_type"           "s"
+```
+
+To see which values these attributes can have, use the function with the attribute name.
+
+
+```r
+s_attributes("GERMAPARL2", "protocol_year") |&gt; head()
+```
+
+```
+## [1] "1949" "1950" "1951" "1952" "1953" "1954"
+```
+
+---
+
+# Nested structural attributes
+
+Corresponding to the hierarchical structure of the XML the indexed CWB data format is based on, Structural attributes can be nested. The latest development version of polmineR includes a new function to inspect nested structures.
+
+
+```r
+corpus("GERMAPARL2") %&gt;% polmineR::tree_structure()
+```
+
+```
+## protocol [lp│no│date│year│url│filetype]
+##    | 
+##    └─ speaker [who│name│party│parlgroup│role]
+##       | 
+##       └─ p [type]
+##          | 
+##          └─ s
+##             | 
+##             └─ ne [type]
+```
+
+---
+
+
+# Creating Subcorpora with subset()
+
+In polmineR, a central function to create **subcorpora** is the `subset()` function.
+
+To create a subcorpus object based on the initial corpus, select the structural attribute as well as its desired value. For example all debates in 1949:
+
+
+```r
+subset("GERMAPARL2", protocol_year == 1949)
+```
+
+**Note**: Passing the name of the corpus as a `character vector` is a shortcut. Passing a `corpus` object instead is more explicit.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(protocol_year == 1949)
+```
+
+`subset()` can be applied to a subcorpus as well. In addition, the creation of more complex slices of the corpus also works by chaining multiple calls to `subset()` as a "pipe":
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(protocol_year == 1949) |&gt;
+  subset(speaker_parlgroup == "FDP")
+```
+
+---
+
+# Creating Subcorpora with subset()
+
+`subset()` allows for different additional ways to create a **subcorpus**, supporting non-standard evaluation.
+
+Using `subset()` with `grepl()`:
+
+
+```r
+germaparl_merkel &lt;- corpus("GERMAPARL2") |&gt;
+  subset(grepl("Merkel", speaker_name))
+
+s_attributes(germaparl_merkel, "speaker_name")
+```
+
+```
+## [1] "Angela Merkel" "Petra Merkel"
+```
+
+&lt;/br&gt;
+
+Using `subset()` with greater than, etc.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(protocol_year &gt;= 2000)
+```
+
+See the documentation of `polmineR` for further examples.
+
+---
+
+# Creating Subcorpus Bundles with split()
+
+`split()` is used to split a corpus or subcorpus object into a bundle of subcorpora by a structural attribute.
+
+For example, the entire corpus can be split into subcorpora representing legislative periods:
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  split(s_attribute = "protocol_lp", verbose = FALSE)
+```
+
+```
+## &lt;&lt;subcorpus_bundle&gt;&gt;
+```
+
+```
+## Number of subcorpora:    19
+```
+
+
+`split()` can also be used for subcorpora.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(protocol_lp == 19) |&gt;
+  split(s_attribute = "protocol_no")
+```
+
+---
+
+It is also possible to split a subcorpus.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(as.Date(protocol_date) &gt;= as.Date("2020-01-01")) |&gt;
+  split(s_attribute = "protocol_date")
+```
+
+---
+
+# as.speeches()
+
+A natural unit of analysis for a corpus of plenary debates might be a single speech. A bundle of individual speeches can be created by `polmineR` with the special function `as.speeches()`.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  as.speeches(s_attribute_name = "speaker_name",
+              s_attribute_date = "protocol_date")
+```
+
+Aside from `s_attribute_name` and `s_attribute_date`, `as.speeches()` also has an argument called `gap` which controls the number of tokens by which an utterance of the same speaker can be interrupted before it is split into two different speeches.
+
+`as.speeches()` also works for subcorpora.
+
+---
+
+# Speeches and Interjections
+
+Whether a token is part of a speech or part of an interjection can be an important distinction. In GermaParl v2, this information is part of the annotation of paragraphs.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(p_type == "speech") |&gt;
+  subset(speaker_name == "Angela Merkel")
+```
+
+More technical details about the nested XML structure of the corpus are provided in the [Release Note](https://polmine.github.io/posts/2023/04/03/GermaParl-v2-beta3-Release-Note.html) of GermaParl v2 beta 3 where this and the next example are also discussed.
+
+---
+
+# Subsetting paragraphs and read()
+
+With `read()` it is possible to access formatted full text of a subcorpus. To show the annotated interjections of GermaParl v2, the definition of paragraphs is necessary:
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(protocol_date == "2001-09-12") |&gt;
+  subset(p) |&gt;
+  read()
+```
+
+See the aforementioned  [Release Note](https://polmine.github.io/posts/2023/04/03/GermaParl-v2-beta3-Release-Note.html) for more technical details.
+
+---
+
+# Scenario: Exploring populist speech
+
+
+
+```r
+library(polmineR)
+
+afd &lt;- corpus("GERMAPARL2") %&gt;% 
+  subset(speaker_party == "AfD") %&gt;% 
+  subset(protocol_lp == "19") %&gt;% 
+  subset(p_type == "speech") 
+
+afd_count &lt;- afd %&gt;%
+  count(p_attribute = "word")
+
+gparl &lt;- corpus("GERMAPARL2") %&gt;% 
+  subset(protocol_lp == "19") %&gt;% 
+  subset(p_type == "speech") %&gt;% 
+  count(p_attribute = "word")
+
+features(x = afd_count, y = gparl) %&gt;% 
+  format() %&gt;% 
+  head(n = 25)
+
+kwic(afd, query = "Sie", left = 15, right = 15, s_attributes = "protocol_date")
+```
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

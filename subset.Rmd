@@ -10,6 +10,10 @@ editor_options:
   chunk_output_type: console
 ---
 
+```{r start_moon_reader, eval = FALSE, include = FALSE, echo = FALSE}
+xaringan::inf_mr()
+```
+
 ```{r libraries, echo = FALSE, message = FALSE, warning = FALSE}
 library(polmineR)
 ```
@@ -18,8 +22,8 @@ library(polmineR)
 
 The creation of meaningful subsets or **subcorpora** of GermaParl enables researchers to
 * focus on specific slices of the data 
-* conduct diachronic analyses (changing patterns over time: dates, years, legislative periods)
-* conduct synchronic analyses (difference between speakers and groups: speaker, parliamentary group, party, role)
+* conduct diachronic analyses<br/>(changing patterns over time: dates, years, legislative periods)
+* conduct synchronic analyses<br/> (difference between speakers and groups: speaker, parliamentary group, party, role)
 
 
 But also focus on specific parts of the text
@@ -31,9 +35,7 @@ But also focus on specific parts of the text
 
 # Foundation: Structural Annotation
 
-Subsetting is made possible by the *structural annotation* of the corpus.
-
-Use `s_attributes()` to find out, which structural attributes are available.
+The *structural annotation* of the corpus is the basis for subsetting the data. Use `s_attributes()` to see which structural attributes are available.
 
 ```{r print_s_attributes}
 s_attributes("GERMAPARL2")
@@ -42,11 +44,21 @@ s_attributes("GERMAPARL2")
 To see which values these attributes can have, use the function with the attribute name.
 
 ```{r print_year}
-s_attributes("GERMAPARL2", "protocol_year") |>
-  head()
+s_attributes("GERMAPARL2", "protocol_year") |> head()
 ```
 
 ---
+
+# Nested structural attributes
+
+Corresponding to the hierarchical structure of the XML the indexed CWB data format is based on, Structural attributes can be nested. The latest development version of polmineR includes a new function to inspect nested structures.
+
+```{r}
+corpus("GERMAPARL2") %>% polmineR::tree_structure()
+```
+
+---
+
 
 # Creating Subcorpora with subset()
 
@@ -109,7 +121,7 @@ For example, the entire corpus can be split into subcorpora representing legisla
 
 ```{r split_1}
 corpus("GERMAPARL2") |>
-  split(s_attribute = "protocol_lp")
+  split(s_attribute = "protocol_lp", verbose = FALSE)
 ```
 
 
@@ -175,3 +187,31 @@ corpus("GERMAPARL2") |>
 ```
 
 See the aforementioned  [Release Note](https://polmine.github.io/posts/2023/04/03/GermaParl-v2-beta3-Release-Note.html) for more technical details.
+
+---
+
+# Scenario: Exploring populist speech
+
+
+```{r, eval = FALSE}
+library(polmineR)
+
+afd <- corpus("GERMAPARL2") %>% 
+  subset(speaker_party == "AfD") %>% 
+  subset(protocol_lp == "19") %>% 
+  subset(p_type == "speech") 
+
+afd_count <- afd %>%
+  count(p_attribute = "word")
+
+gparl <- corpus("GERMAPARL2") %>% 
+  subset(protocol_lp == "19") %>% 
+  subset(p_type == "speech") %>% 
+  count(p_attribute = "word")
+
+features(x = afd_count, y = gparl) %>% 
+  format() %>% 
+  head(n = 25)
+
+kwic(afd, query = "Sie", left = 15, right = 15, s_attributes = "protocol_date")
+```

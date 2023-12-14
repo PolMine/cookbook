@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Cooking with GermaParl: Spicy Queries</title>
+    <meta charset="utf-8" />
+    <meta name="date" content="2023-11-23" />
+    <script src="cqp_files/header-attrs-2.25/header-attrs.js"></script>
+    <script src="cqp_files/htmlwidgets-1.6.3/htmlwidgets.js"></script>
+    <script src="cqp_files/viz-1.8.2/viz.js"></script>
+    <link href="cqp_files/DiagrammeR-styles-0.2/styles.css" rel="stylesheet" />
+    <script src="cqp_files/grViz-binding-1.0.10/grViz.js"></script>
+    <script src="cqp_files/kePrint-0.0.1/kePrint.js"></script>
+    <link href="cqp_files/lightable-0.0.1/lightable.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/default.css" type="text/css" />
+    <link rel="stylesheet" href="css/metropolis.css" type="text/css" />
+    <link rel="stylesheet" href="css/robot-fonts.css" type="text/css" />
+    <link rel="stylesheet" href="css/polminify.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+.title[
+# Cooking with GermaParl: Spicy Queries
+]
+.date[
+### 2023-11-23
+]
+
+---
+
+
+
+
+
+
+# Data formats and structures
+
+* TEI-inspired XML: &lt;br/&gt;https://github.com/PolMine/GermaParlTEI
+* Corpus Workbench (CWB): &lt;br/&gt;https://zenodo.org/record/7949074
+
+The CWB data is indexed and linguistically annotated!
+
+See the [landing page at Zenodo](https://zenodo.org/record/7949074) for further installation instructions!
+
+---
+
+# GermaParl: Data Preparation Workflow
+
+<div class="grViz html-widget html-fill-item" id="htmlwidget-298f24125fa8a28b26b0" style="width:792px;height:504px;"></div>
+<script type="application/json" data-for="htmlwidget-298f24125fa8a28b26b0">{"x":{"diagram":"\n  digraph {\n  graph [layout = dot, rankdir = LR, nodesep = 0.5]\n  \n\nnode [shape = cylinder style = filled fillcolor = Gray93]\nRAW1[label = \"Raw Data 1\"]\nRAW2[label = \"Raw Data 2\"]\nRAW3[label = \"Raw Data 3\"]\nXML[label = \"TEI/XML\"]\nXML2[label = \"TEI/XML (enriched)\"]\nVRT[label = \"VRT\"]\nCWB[label = \"CWB\"]\n\nnode[shape = rect style=filled fillcolor = Gray]\nPARSE[label = \"Preprocessing and Parsing\n(frappp)\"]\nENRICH[label = \"Enrich\n(frappp)\"]\nANNOTATE[label = \"Linguistic Annotation\n(bignlp/Stanford CoreNLP, TreeTagger)\"]\nENCODE[label = \"Encoding\n(Corpus Workbench)\"]\n\n\nRAW1 -> PARSE\nRAW2 -> PARSE\nRAW3 -> PARSE\n\nPARSE -> XML -> ENRICH-> XML2 -> ANNOTATE -> VRT -> ENCODE -> CWB\n   }\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+
+---
+
+# XML/TEI
+
+* structural annotation (metadata on document and speaker level)
+* quasi standardization, inspired by the standards of the Text Encoding Initiative (TEI)
+
+
+```
+## &lt;?xml version="1.0" encoding="UTF-8" standalone="no"?&gt;
+## &lt;TEI&gt;
+##   &lt;teiHeader&gt;
+##     &lt;fileDesc&gt;
+##       &lt;titleStmt&gt;
+##         &lt;title&gt;Plenarprotokoll&lt;/title&gt;
+##         &lt;legislativePeriod&gt;1&lt;/legislativePeriod&gt;
+##         &lt;sessionNo&gt;3&lt;/sessionNo&gt;
+##       &lt;/titleStmt&gt;
+##       &lt;editionStmt&gt;
+##         &lt;edition&gt;
+##           &lt;package&gt;frappp&lt;/package&gt;
+##           &lt;version&gt;0.4.1.9010&lt;/version&gt;
+##           &lt;birthday&gt;2023-05-16&lt;/birthday&gt;
+##         &lt;/edition&gt;
+##       &lt;/editionStmt&gt;
+##       &lt;publicationStmt&gt;
+##         &lt;publisher&gt;Deutscher Bundestag&lt;/publisher&gt;
+##         &lt;date when=""&gt;1949-09-15&lt;/date&gt;
+##         &lt;page/&gt;
+##       &lt;/publicationStmt&gt;
+##       &lt;sourceDesc&gt;
+##         &lt;filetype&gt;xml&lt;/filetype&gt;
+##         &lt;url&gt;https://www.bundestag.de/resource/blob/487966/4078f01fb3198dc3cee8945d6db3b231/pp01-data.zip&lt;/url&gt;
+##         &lt;date&gt;2023-02-24&lt;/date&gt;
+##       &lt;/sourceDesc&gt;
+##     &lt;/fileDesc&gt;
+##     &lt;encodingDesc&gt;
+##       &lt;projectDesc&gt;PolMine-Project (www.polmine.de)&lt;/projectDesc&gt;
+##       &lt;samplingDecl/&gt;
+##       &lt;editorialDecl/&gt;
+##     &lt;/encodingDesc&gt;
+##     &lt;profileDesc/&gt;
+##     &lt;revisionDesc/&gt;
+##   &lt;/teiHeader&gt;
+##   &lt;text&gt;
+##     &lt;body&gt;
+##       &lt;div type="agenda_item" n="2" what="election" desc="Wahl des Bundeskanzlers"&gt;
+##         &lt;sp who="Köhler" parliamentary_group="NA" role="presidency" position="Präsident" who_original="Köhler" party="CDU" name="Erich Köhler"&gt;
+##           &lt;speaker&gt;Präsident Dr. Köhler:&lt;/speaker&gt;
+##           &lt;p&gt;Meine Damen und Herren! Ich eröffne die 3. Sitzung des Deutschen Bundestags. Die Tagesordnung liegt Ihnen vor. Wir treten in die Tagesordnung ein. Punkt 1:&lt;/p&gt;
+##           &lt;p&gt;Mitteilungen.&lt;/p&gt;
+##           &lt;p&gt;Es fehlen heute wegen Erkrankung oder sonst entschuldigt folgende Mitglieder des Hauses: Dr. Suhr, Brandt, Eichler, Frau Kipp-Kaule, Kuhlemann, Walter Vesper, Dr. Wellhausen. Ich habe Ihnen ferner ein Schreiben des Herrn Bundespräsidenten folgenden Wortlauts zur Kenntnis zu bringen:&lt;/p&gt;
+##           &lt;p&gt;Da gemäß Artikel 55 des Grundgesetzes der Bundespräsident weder der Regierung noch einer gesetzgebenden Körperschaft des Bundes angehören darf, teile ich Ihnen hierdurch mit, daß ich auf meinen Sitz als Abgeordneter im Bundestag verzichte. Der Name der Nachfolgerin im Mandat ist mir amtlich bereits mitgeteilt worden: es ist Frau Abgeordnete Margarete Hütter, die ich hiermit begrüße. Ich habe ferner von folgendem Schreiben Kenntnis zu geben:&lt;/p&gt;
+##           &lt;p&gt;Die Abgeordneten Dr. Franz Richter, Dr. Herwart Mießner, Adolf von Thadden, Landwirt Frommhold der Deutschen Rechtspartei, Abgeordneter Dr. Fritz Dorls und Abgeordneter Dr. Heinrich Leuchtgens der Nationaldemokratischen Partei haben sich zu der Gruppe „Nationale Rechte" im Bundestag zusammengeschlossen.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Heiterkeit und Zurufe.)&lt;/stage&gt;
+##           &lt;p&gt;Meine Damen und Herren! Wir kommen nunmehr zu Punkt 2 der Tagesordnung:&lt;/p&gt;
+##           &lt;p&gt;Wahl des Bundeskanzlers.&lt;/p&gt;
+##           &lt;p&gt;Ehe wir zur Wahl schreiten, darf ich auf die einschlägigen Bestimmungen des Grundgesetzes hinweisen. Nach Artikel 63 Absatz 1 wird der Bundeskanzler auf Vorschlag des Bundespräsidenten vom Bundestage ohne Aussprache gewählt. Gewählt ist, wer die Stimmen der Mehrheit der Mitglieder des Bundestags auf sich vereinigt. Der Gewählte ist vom Bundespräsidenten zu ernennen. Der Herr Bundespräsident hat mir folgendes Schreiben übermittelt:&lt;/p&gt;
+##           &lt;p&gt;Ich schlage den Abgeordneten Dr. Konrad Adenauer zum Kanzler der Bundesrepublik Deutschland vor Nachdem Sie den Vorschlag des Herrn Bundespräsidenten gehört haben, schreiten wir zur Wahl. Ich bitte die Mitglieder des Bundestags, ihr Wahlrecht durch Abgabe der im Umschlag befindlichen Stimmzettel auszuüben dergestalt, daß auf den Stimmzettel entweder das Wort „Ja" oder das Wort „Nein" geschrieben wird bzw. bei Stimmenthaltung der Stimmzettel keine Bezeichnung erhält. Ich bitte, die Stimmzettel ungefaltet in die Umschläge zu stecken und darauf zu achten, daß nicht etwa versehentlich ein zweiter, leerer Stimmzettel sich im Umschlag befindet. Was die technische Form der Abstimmung anlangt, so wollen wir die gleiche Methode anwenden wie bei der Wahl des Herrn Bundespräsidenten. Es sind drei Urnen vorhanden, eine hier in der Mitte, eine links und eine rechts. — Ich bitte — wie bei der Wahl des Herrn Bundespräsidenten — die Abgeordneten Frau Albertz, Karpf und Dr. Zawadil, sich an die Urnen zu begeben, um die Umschläge mit den Stimmzetteln in Empfang zu nehmen. Ferner bitte ich die Schriftführer, nachzusehen, ob die Urnen ohne Inhalt sind. — Ist das geschehen? — Ich stelle das fest. Ist das Haus damit einverstanden, daß zur Vereinfachung der Abstimmung die Namen aufgerufen werden? — Ich höre keinen Widerspruch. Nunmehr bitte ich, mit der Stimmabgabe zu beginnen.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Namensaufruf.)&lt;/stage&gt;
+##           &lt;p&gt;Meine Damen und Herren! Ich frage, ob alle anwesenden Mitglieder des Bundestags aufgerufen worden sind und ihr Stimmrecht ausgeübt haben.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Abg. Frau Hütter: Nein!)&lt;/stage&gt;
+##           &lt;p&gt;— Bitte, geben Sie Ihre Stimme ab! —&lt;/p&gt;
+##           &lt;p&gt;Weitere Einsprüche werden nicht angemeldet. Dann erkläre ich die Wahlhandlung für geschlossen. Ich bitte die Damen und Herren, die die Wahlurnen betreut haben, die Wahlurnen neben mir auf dem Regierungstisch zu entleeren und mit der Auszählung zu beginnen.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Das Ergebnis wird ermittelt.)&lt;/stage&gt;
+##           &lt;p&gt;Ich berufe zur weiteren Hilfe den Schriftführer Abgeordneten Pannebecker. Ich darf noch eine geschäftliche Mitteilung machen. Es ist mir inzwischen gemeldet worden, daß die Abgeordneten Götzendorff und Schuster noch nicht anwesend sind.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Die Ermittlung des Ergebnisses wird fortgesetzt.)&lt;/stage&gt;
+##           &lt;p&gt;Meine Damen und Herren, ich möchte das Ergebnis der Stimmabgabe bekanntgeben. Bevor ich es tue, möchte ich eine formelle Frage klären. Ich habe vorhin zum Ausdruck gebracht, daß entweder „Ja" oder „Nein" bzw. bei Enthaltungen nichts auf die Stimmzettel geschrieben werden soll. Es hat sich nunmehr herausgestellt, daß auf drei Stimmzetteln der Name „Adenauer" steht. Ich bitte das Haus um eine Meinungsäußerung, ob diese Stimmzettel als gültig anzusehen sind.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Ja-Rufe.)&lt;/stage&gt;
+##           &lt;p&gt;— Ich höre keinen Widerspruch. Dann darf ich die Einmütigkeit des Hauses feststellen, daß die drei mit dem Namen „Adenauer" beschriebenen Zettel als solche im Sinne des angegebenen Abstimmungsverfahrens gelten. Meine Damen und Herren, ich stelle nun folgendes fest. Mit Ja haben 202, mit Nein 142 gestimmt, 44 Abgeordnete haben sich der Stimme enthalten, und eine Stimme ist ungültig. Nach den Vorschriften des Grundgesetzes über die Wahl des Bundeskanzlers, Artikel 63 Absatz 2 Satz 1 in Verbindung mit Artikel 121, beträgt die absolute Mehrheit der 402 Mitglieder des Bundestags 202. Diese Mehrheit im Sinne der eben genannten Vorschriften ist auf den Abgeordneten Dr. Adenauer entfallen.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Lachen links. — Zurufe.)&lt;/stage&gt;
+##           &lt;p&gt;Meine Damen und Herren! Ich habe den Herrn Abgeordneten Dr. Adenauer zu fragen, ob er bereit ist, die auf ihn gefallene Wahl zum Bundeskanzler anzunehmen.&lt;/p&gt;
+##         &lt;/sp&gt;
+##         &lt;sp who="Adenauer" parliamentary_group="CDU" role="mp" position="NA" who_original="Adenauer" party="CDU" name="Konrad Adenauer"&gt;
+##           &lt;speaker&gt;Dr. Adenauer (CDU):&lt;/speaker&gt;
+##           &lt;p&gt;Ja.&lt;/p&gt;
+##         &lt;/sp&gt;
+##         &lt;sp who="Köhler" parliamentary_group="NA" role="presidency" position="Präsident" who_original="Köhler" party="CDU" name="Erich Köhler"&gt;
+##           &lt;speaker&gt;Präsident Dr. Köhler:&lt;/speaker&gt;
+##           &lt;p&gt;Der Herr Abgeordnete Dr. Adenauer hat erklärt, er nehme die Wahl als Bundeskanzler an. Ich stelle fest, daß damit der erste Bundeskanzler der Bundesrepublik Deutschland gewählt ist. Ich werde nach der Vorschrift des Artikels 63 Absatz 2 Satz 2 des Grundgesetzes dem Herrn Bundespräsidenten die entsprechende Mitteilung zur weiteren Veranlassung machen. Wir sind am Ende der Tagesordnung der dritten Bundestagssitzung angekommen. Ich berufe die nächste, die vierte Bundestagssitzung auf 12 Uhr 30. Die Sitzung ist geschlossen.&lt;/p&gt;
+##           &lt;stage type="interjection"&gt;(Schluß der Sitzung: 11 Uhr 53 Minuten.)&lt;/stage&gt;
+##         &lt;/sp&gt;
+##       &lt;/div&gt;
+##     &lt;/body&gt;
+##   &lt;/text&gt;
+## &lt;/TEI&gt;
+```
+
+---
+
+# The Verticalized Text format (VRT)
+
+* linguistically annotated "verticalized text" (tab separated and annotated with XML tags)
+* see Corpus Encoding Manual (https://cwb.sourceforge.io/files/CWB_Encoding_Tutorial/)
+
+
+```
+## &lt;?xml version="1.0" encoding="UTF-8"?&gt;
+## &lt;protocol lp="1" no="3" date="1949-09-15" year="1949" url="https://www.bundestag.de/resource/blob/487966/4078f01fb3198dc3cee8945d6db3b231/pp01-data.zip" filetype="xml"&gt;
+##   &lt;speaker id="1_3_S_1_1" type="speech" lp="1" protocol_no="3" date="1949-09-15" year="1949" who="Köhler" name="Erich Köhler" parlgroup="NA" party="CDU" role="presidency"&gt;
+## &lt;/speaker&gt;
+##   &lt;speaker id="1_3_S_1_2" type="speech" lp="1" protocol_no="3" date="1949-09-15" year="1949" who="Köhler" name="Erich Köhler" parlgroup="NA" party="CDU" role="presidency"&gt;
+##     &lt;p&gt;
+##       &lt;s&gt;
+## Meine	PRON	O
+## Damen	NOUN	O
+## und	CCONJ	O
+## Herren	NOUN	O
+## !	PUNCT	O
+## &lt;/s&gt;
+##       &lt;s&gt;
+## Ich	PRON	O
+## eröffne	VERB	O
+## die	DET	O
+## 3	NUM	O
+## .	PUNCT	O
+## &lt;/s&gt;
+##       &lt;s&gt;
+## Sitzung	NOUN	O
+## des	DET	O
+## &lt;ne type="ORGANIZATION"&gt;
+## Deutschen	PROPN	ORGANIZATION
+## Bundestags	PROPN	ORGANIZATION
+```
+
+---
+
+# Positional attributes
+
+Attributes at the token level are *positional attributes*:
+
+* word: the "surface form" of the token
+* xpos: Part-of-Speech-Annotation #1 (Stuttgart-Tübingen Tagset / STTS)
+* upos: Part-of-Speech-Annotation #2 (Universal Dependencies Tagset)
+* lemma: Lemmatized form of the token
+
+&lt;table style="NAborder-bottom: 0;"&gt;
+&lt;caption&gt;A token stream representation of the GermaParl corpus&lt;/caption&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; cpos &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; word &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; xpos &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; upos &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; lemma &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 8413 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Meine &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; PPOSAT &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; PRON &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; mein &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 8414 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Damen &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; NN &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; NOUN &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Dame &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 8415 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; und &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; KON &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; CCONJ &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; und &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 8416 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Herren &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; NN &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; NOUN &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Herr &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 8417 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; ! &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; $. &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; PUNCT &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; ! &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;tfoot&gt;
+&lt;tr&gt;&lt;td style="padding: 0; " colspan="100%"&gt;&lt;span style="font-style: italic;"&gt;Note: &lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style="padding: 0; " colspan="100%"&gt;
+&lt;sup&gt;&lt;/sup&gt; Beginning of session 1/3 (1949-09-15)&lt;/td&gt;&lt;/tr&gt;
+&lt;/tfoot&gt;
+&lt;/table&gt;
+
+---
+
+# Structural attributes
+
+Aside from annotation on token level, sentences, paragraps and named entities are linguistically annotated. These can comprise more than one token and thus are annotated as *structural attributes*. The relevant structural attributes are:
+
+* `p` - regions defining paragraphs (no distinct values). 
+* `p_type` distinguishes between speeches and other kinds of text such as stage comments or interjections
+* `s` - regions defining sentences (no distinct values). 
+* `ne_type` describes the type of a region which has been annotated as a named entity. These can be "ORGANIZATION", "LOCATION", "MISC" or "PERSON".
+
+The `p` and `s` annotation layers can be used to subset the corpus based on sentences and paragraphs or to set boundaries for analyses like `kwic()`.
+
+---
+# Structural attributes of GermaParl
+
+
+```r
+corpus("GERMAPARL2") %&gt;% tree_structure() # dev version of polmineR required
+```
+
+```
+## protocol [lp│no│date│year│url│filetype]
+##    | 
+##    └─ speaker [who│name│party│parlgroup│role]
+##       | 
+##       └─ p [type]
+##          | 
+##          └─ s
+##             | 
+##             └─ ne [type]
+```
+---
+
+# CQP: The corpus query processor
+
+`polmineR` exposes the powerful CQP query language to query CWB corpora. Using the CQP syntax, the linguistic annotation layers are accessible. The CWB development team provides a [comprehensive handbook](https://cwb.sourceforge.io/files/CQP_Manual.pdf).
+
+To be distinguished:
+
+- CQP command line tool
+- RcppCWB 
+- polmineR
+
+---
+
+# CQP and regular expressions
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  kwic(
+    query = '"[Dd]emokratisch.*"',
+    cqp = TRUE,
+    s_attribute = "protocol_date"
+  ) 
+```
+
+
+---
+
+# Positional attributes
+
+... the CQP syntax allows to specify the positional attribute:
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  kwic(query = '[word = "[dD]emokratisch.*"]', s_attribute = "protocol_date")
+```
+
+---
+
+# Positional attributes
+
+Note the single quotation marks around the entire query as well as the squared brackets.
+
+This introduces some flexibility to the query. For example, the part of speech tag can be used as additional information. 
+
+While the German word for "Fliege" is ambivalent (just like the English word) where it can describe an animal or a specific form of the verb "to fly", the CQP syntax allows to differentiate between the two. 
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  kwic(
+    query = '[word = "Fliege" &amp; xpos = "V.*"]',
+    s_attribute = c("protocol_lp", "protocol_no")
+  )
+```
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  kwic(
+    query = '[word = "Fliege" &amp; xpos = "N.*"]',
+    s_attribute = c("protocol_lp", "protocol_no")
+  )
+```
+
+---
+
+# CQP and advanced queries
+
+CQP queries can be more complex and work for most `polmineR` methods.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  polmineR::count(
+    query = '"freiheitlich" "-" [lemma = "demokratisch"] "Grundordnung"',
+    breakdown = TRUE
+  ) |&gt;
+  as.data.frame()
+```
+
+```
+##                                                        query
+## 1 "freiheitlich" "-" [lemma = "demokratisch"] "Grundordnung"
+## 2 "freiheitlich" "-" [lemma = "demokratisch"] "Grundordnung"
+## 3 "freiheitlich" "-" [lemma = "demokratisch"] "Grundordnung"
+##                                        match count share
+## 1  freiheitlich - demokratische Grundordnung   525 50.10
+## 2 freiheitlich - demokratischen Grundordnung   518 49.43
+## 3 freiheitlich - demokratischer Grundordnung     5  0.48
+```
+
+The manual does provide some even more advanced queries. 
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  subset(protocol_lp %in% 5:6) |&gt;
+  count(
+    query = '(?longest)[xpos = "V.*"] []{0,5} [word = "Transformation"]',
+    breakdown = TRUE
+  )
+```
+
+---
+
+# CQP and structural attributes
+
+Linguistic annotations can be used in structural attributes as well.
+
+
+```r
+corpus("GERMAPARL2") |&gt;
+  polmineR::count(
+    query = '/region[ne_type,a]::a.ne_type="ORGANIZATION"',
+    cqp = TRUE,
+    breakdown = TRUE
+  )
+```
+
+---
+
+# Counting Named Entities
+
+
+```r
+x &lt;- corpus("GERMAPARL2") %&gt;% 
+  subset(ne_type = "PERSON") %&gt;% 
+  split(s_attribute = "ne_type") %&gt;% 
+  get_token_stream(p_attribute = "word") %&gt;% 
+  table()
+```
+
+---
+
+# A time-series plot
+
+
+```r
+library(dplyr)
+library(xts)
+library(lubridate) # we need lubridate::floor_date()
+
+look_up &lt;- '"freiheitlich" "-" [lemma = "demokratisch"] "Grundordnung"'
+
+corpus("GERMAPARL2") %&gt;% 
+  dispersion(query = look_up, cqp = TRUE, s_attribute = "protocol_date") %&gt;%
+  as_tibble() %&gt;%
+  mutate(date = as.Date(protocol_date)) %&gt;%
+  mutate(year = floor_date(date, unit = "year")) %&gt;%
+  filter(!is.na(year)) %&gt;%
+  select(count, year) %&gt;%
+  group_by(year) %&gt;%
+  summarise(sum = sum(count)) %&gt;%
+  as.xts(x = .$sum, order.by = .$year) %&gt;%
+  plot(
+    main = "'FDGO' in Bundestag Plenary Debates (N/quarter)",
+    xlab = "total per year",
+    ylim = c(0, 100), col = "darkblue", main.timespan = FALSE
+  )
+```
+
+![](cqp_files/figure-html/unnamed-chunk-3-1.png)&lt;!-- --&gt;
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
