@@ -1,0 +1,96 @@
+/* https://stackoverflow.com/questions/56373198/get-xaringan-incremental-animations-to-print-to-pdf */
+
+.title-slide {
+  background-image: url(img/Dry_Chili_pepper.jpg);
+  /* background-position: 100% 0%; ## just start changing this */
+  background-size: 300px;
+  background-color: #fff;
+  padding-left: 100px;  /* delete this for 4:3 aspect ratio */
+}
+
+
+.remark-slide-content {
+    background-color: #FAFAFA;
+    border-top: 80px solid #6B84AC;
+    font-size: 20px;
+    font-weight: 300;
+    line-height: 1.5;
+    padding: 1em 2em 1em 2em;
+}
+
+hr, .title-slide h2::after, .mline h1::after {
+    content: '';
+    display: block;
+    border: none;
+    background-color: #efefef;
+    /* color: #EB811B; */
+    height: 3px;
+}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+
+.inverse {
+  background-color: #6B84AC;
+  border-top: 0px !important;
+  color: #ffffff;
+  /* text-shadow: 0 0 20px #333; */
+}
+
+
+.inverse h1{
+  margin-top: 425px;
+}
+
+.inverse2 h1{
+  margin-top: 100px;
+  text-align: right;
+}
+
+.inverse2 h2 {
+    color: #efefef;
+    text-align: right;
+}
+
+
+.title-slide h1 {
+    margin-top: 100px;
+    color: #efefef;
+}
+
+
+
+.title-slide h2 {
+    color: #efefef;
+}
+
+.title-slide h3 {
+    color: #efefef;
+}
+
+.white{
+  background-color: #ffffff !important;
+}
+
+h1 {
+  margin-top: -95px;
+  color: #efefef;
+  text-align: left;
+}
+
+.smallpic{
+  width: 2500px;
+  height: 180px
+}
+
+.attribution{
+  padding-left: 650px;
+  font-size: 15px;
+  color: #efefef;
+}
+
+.attribution a {
+  color: #efefef;
+}

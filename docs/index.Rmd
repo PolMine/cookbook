@@ -1,0 +1,66 @@
+---
+title: "The PolMine Cookbook"
+author: "Andreas Blaette, Christoph Leonhardt"
+output: 
+  xaringan::moon_reader:
+    css: [default, metropolis, robot-fonts, './css/cookbook.css']
+    seal: false
+    nature:
+      countIncrementalSlides: false
+      titleSlideClass: ["title-slide", "nobackground", "inverse"]
+editor_options:
+  chunk_output_type: console
+---
+
+background-image: url(img/Oranges.jpg)
+background-size: cover
+class: nobackground, inverse
+
+.attribution[[Picture: Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Oranges.jpg)]
+
+
+# Cookin' with PolMine
+## A Cookbook for Corpus Analysis
+
+---
+
+
+background-image: url(img/Spices.jpg)
+background-size: cover
+class: nobackground, inverse
+
+.attribution[[Ramesh NG](https://commons.wikimedia.org/wiki/File:Dry_Chili_pepper.jpg)]
+
+
+# The CQP Syntax
+## Spice up your Queries
+
+[Click here to see recipe!](subset.html)
+
+---
+
+background-image: url(img/Making_potato_wedges.jpg)
+background-size: cover
+class: nobackground, inverse2
+
+.attribution[[W. Carter](https://upload.wikimedia.org/wikipedia/commons/4/49/Making_potato_wedges.jpg)]
+
+
+# Corpus Slices
+## Subsetting by Structural Annotation
+
+[Click here to see recipe!](subset.html)
+
+---
+
+background-image: url(img/Dry_tagliatelle_pasta.jpg)
+background-size: cover
+class: nobackground, inverse
+
+.attribution[[Mathias Braux](https://upload.wikimedia.org/wikipedia/commons/3/32/Dry_tagliatelle_pasta.jpg)]
+
+# Textual Tagliatelle
+## Unraveling Sentence Annotation
+
+[Click here to see recipe!](sentences_intro.html)
+
