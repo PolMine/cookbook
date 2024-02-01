@@ -1,0 +1,706 @@
+---
+title: "From Data to Dishes"
+date: "2023-02-01"
+output: 
+  xaringan::moon_reader:
+    css: ["./css/default.css", "./css/metropolis.css", "./css/robot-fonts.css", './css/polminify.css']
+    seal: false
+    nature:
+      countIncrementalSlides: false
+      titleSlideClass: ["title-slide", "nobackground", "inverse"]
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = TRUE)
+```
+
+background-image: url(docs/img/Batterie_de_cuisine.jpg)
+background-size: cover
+class: nobackground, inverse
+
+.attribution[[Pascal3012, CC BY-SA 3.0](https://commons.wikimedia.org/w/index.php?curid=10095941)]
+
+
+# From Data to Dishes
+## Create your own CWB Corpus
+
+---
+
+
+# Purpose - Motivation - Overview
+
+* The "Cookin' with GermaParl" webinar series presents recipes to work with data in the indexed format of the *Corpus Workbench* (CWB) from R
+
+* the CWB format provides great performance when working with large corpora and facilitates the usage of linguistic annotation on different levels
+
+* moving your own data to the CWB format might be worth considering in terms of performance and flexibility
+
+* a key resource on creating CWB corpora is the [Corpus Encoding and Management Manual](https://cwb.sourceforge.io/documentation.php) created and maintained by Stephanie Evert and the CWB Development Team 
+
+* to make these tasks easier in particular for users familiar with the R programming language, the package [cwbtools](https://CRAN.R-project.org/package=cwbtools) created and maintained by the PolMine team provides the functionality to import text in different input formats into the CWB
+
+* the following workflows show how to use `cwbtools` to import (a) XML and (b) tidytext formats into the Corpus Workbench
+
+---
+
+# Overview
+
+### Outline
+
+* Getting Started
+* Paths to the Corpus Workbench:
+  * Scenario 1: From tidytext to CWB
+  * Scenario 2: From XML to CWB
+* Further Remarks and Potential Pitfalls
+
+</br>
+
+* *Note*: The `cwbtools` R package implements two different strategies to create CWB corpora. Aside from a "pure R" approach shown in the following, there is also a "CWB" approach which makes use of the functionalities provides by the Corpus Workbench itself
+
+---
+
+# Getting Started: Install packages
+
+* the first step is to install the R package [cwbtools](https://CRAN.R-project.org/package=cwbtools), available on CRAN
+
+```{r install_cwbtools, eval = FALSE}
+install.packages("cwbtools") # v0.3.9
+```
+
+* we will also use the R package [data.table](https://CRAN.R-project.org/package=data.table) which handles large tabular data structures very efficiently
+
+* start by loading the two packages
+
+```{r}
+library(cwbtools)
+library(data.table)
+```
+
+---
+
+# Getting Started: Directories
+
+```{r clean_dirs, echo = FALSE}
+# remove data directory and registry directory if necessary
+
+data_dir_tmp <- fs::path(tempdir(), "data_dir")
+registry_tmp <- fs::path(tempdir(), "registry")
+if (file.exists(registry_tmp)){
+  file.remove(list.files(registry_tmp, full.names = TRUE))
+  unlink(registry_tmp)
+}
+if (file.exists(data_dir_tmp)) unlink(data_dir_tmp)
+
+regdir_envvar <- Sys.getenv("CORPUS_REGISTRY")
+```
+
+* the CWB stores each corpus in a separate *data directory*
+
+* in addition, there is a *registry directory* in which *registry files* describing the indexed corpora and the path to the data directory are stored
+
+* for illustrative purposes, a temporary directory structure is created
+
+```{r create_tmp_dirs}
+registry_tmp <- fs::path(tempdir(), "registry")
+data_dir_tmp <- fs::path(tempdir(), "data_dir")
+
+dir.create (registry_tmp)
+dir.create(data_dir_tmp)
+
+regdir_envvar <- Sys.getenv("CORPUS_REGISTRY")
+Sys.setenv(CORPUS_REGISTRY = registry_tmp)
+```
+
+---
+
+# From tidytext and XML to CWB corpora 
+
+* [cwbtools](https://CRAN.R-project.org/package=cwbtools) supports processing different input formats and importing them into the CWB
+
+* we focus on two common input formats:
+  * *tidytext* (commonly used to represent metadata and text in a tabular format)
+  * *XML* (often used to represent nested data structures of metadata and text)
+
+* these input formats should cover a wide variety of use cases, i.e. a number of other formats can be transformed into one of these
+
+* *Note*: The workflows are described in more detail in the vignette of the `cwbtools` R package. The vignette also contains a scenario for the **VCorpus** of the `tm` package
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+* a very common scenario involves textual data which is available in some form of *tabular format*
+
+* the [tidytext](https://CRAN.R-project.org/package=tidytext) R package provides workflows to work with such representations using "tidy data principles"
+
+* as example data, the full texts of novels of Jane Austen (included in the package [janeaustenr](https://CRAN.R-project.org/package=janeaustenr)) are used
+
+* the `janeaustenr` R package contains books by Jane Austen as a `tidy data frame` with the two columns "text" and "book"
+
+* using the `tidytext` R package, it is easy to split the sequences in the `text` column to separate tokens:
+
+```{r}
+tbl <- janeaustenr::austen_books() |>
+  tidytext::unnest_tokens(word, text, to_lower = FALSE, strip_punct = FALSE)
+```
+
+---
+
+# From tidytext to CWB: Preparations
+
+```{r, message = FALSE, results = FALSE, echo = FALSE}
+austen_data_dir_tmp <- fs::path(data_dir_tmp, "austen")
+if (file.exists(austen_data_dir_tmp)){
+  file.remove(list.files(austen_data_dir_tmp, full.names = TRUE))
+  unlink(austen_data_dir_tmp, force = TRUE, recursive = TRUE)
+}
+```
+
+* first create an additional directory within the temporary data directory created above
+
+```{r, message = FALSE, results = FALSE}
+austen_data_dir_tmp <- fs::path(data_dir_tmp, "austen")
+dir.create(austen_data_dir_tmp)
+```
+
+* the `CorpusData` object of the `cwbtools` R package serves as a processor and provides the necessary functionality to turn textual data into a CWB corpus
+
+* the first step is to instantiate a new `CorpusData` object
+
+```{r}
+Austen <- CorpusData$new()
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+### Adding the tokenstream
+
+* the performance of the CWB is mostly due to the efficient indexation of the text
+
+* each token is indexed so that the position of each token within the corpus ("corpus position") is known
+
+* to realize this representation, a continuous representation of all tokens in the corpus, a so-called tokenstream, is created and added to the `CorpusData` object
+
+* practically, the `tidytext` representation of the tokenstream created with `unnest_tokens()` earlier can be assigned to the `tokenstream` slot of the `CorpusData` object as a `data.table` object
+
+```{r}
+Austen$tokenstream <- as.data.table(tbl)
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+### Adding linguistic annotation
+
+* it is possible to make use of the functionalities of `data.table` to create additional layers of linguistic annotation ("positional attributes")
+
+* in the following, we use stemming with the [SnowballC](https://CRAN.R-project.org/package=SnowballC) package to add word stems
+
+```{r}
+Austen$tokenstream[, stem := SnowballC::wordStem(tbl[["word"]], language = "english")]
+```
+
+### Adding corpus positions
+
+* in the next step, the corpus positions, i.e. the position of each token in the corpus, must be added to the `data.table`
+* in the Corpus Workbench, corpus positions start at 0
+
+```{r}
+Austen$tokenstream[, cpos := 0L:(nrow(tbl) - 1L)]
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+### Metadata as structural attributes
+
+* currently, the tokenstream contains not only linguistic information about tokens (here: word and stem) but also the information on which book a token belongs to
+
+* however, this information which potentially concerns a span - or region - of tokens is annotated as structural attributes, i.e. metadata
+
+* structural attributes are annotated as regions with a start and and end point within the tokenstream
+
+* to add this information, it is possible to use the information in the tokenstream: Knowing which *token* belongs to which *book* allows for the calculation of ranges of corpus positions for each book
+
+```{r}
+cpos_max_min <- function(x)
+  list(cpos_left = min(x[["cpos"]]), cpos_right = max(x[["cpos"]]))
+Austen$metadata <- Austen$tokenstream[, cpos_max_min(.SD), by = book]
+Austen$metadata[, book := as.character(book)]
+setcolorder(Austen$metadata, c("cpos_left", "cpos_right", "book"))
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+* the column names of the `metadata` table are also used as the names of the **structural attributes** in the resulting CWB corpus
+
+* regarding the names of `structural attributes` there are specific naming conventions as well as mandatory guidelines in the Corpus Encoding Manual of the Corpus Workbench: For example, structural attributes must be in lower case and must not start with a number
+
+* the final metadata table looks like the following:
+
+```{r}
+Austen$metadata
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+### Final Cleanup
+
+* in the `tokenstream` the information on the "book" is not needed
+
+```{r}
+Austen$tokenstream[, book := NULL]
+setcolorder(Austen$tokenstream, c("cpos", "word", "stem"))
+```
+
+* the final token stream looks as follows:
+
+```{r}
+Austen$tokenstream |> head()
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+### Encoding the Corpus
+
+* the `$encode()` method is used to import this information into the Corpus Workbench
+
+* The main workers within `encode()` are the `p_attribute_encode()` function to encode the **tokenstream** and the `s_attribute_encode()` function to encode the metadata
+
+```{r, message = FALSE, }
+Austen$encode(
+   corpus = "AUSTEN",
+   encoding = "utf8",
+   p_attributes = c("word", "stem"),
+   s_attributes = "book",
+   registry_dir = registry_tmp,
+   data_dir = austen_data_dir_tmp,
+   method = "R",
+   compress = FALSE
+)
+RcppCWB::cl_delete_corpus("AUSTEN")
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+### Sharing the Corpus
+
+* the results of the encoding are stored in the temporary directory created earlier (as well as in the corresponding *registry file*)
+
+```{r}
+list.files(austen_data_dir_tmp) |> head()
+```
+
+* corpora in the PolMine project are stored and shared as **compressed tar archives** which can be easily backed up and - if licensing and other restrictions outside of the scope of this tutorial permit - shared
+
+* [cwbtools](https://CRAN.R-project.org/package=cwbtools) provides functions to create tar archives from indexed CWB corpora with `corpus_as_tarball()`
+
+* use `corpus_install()` to install the corpus. It can then be used with [polmineR](https://CRAN.R-project.org/package=polmineR)
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+### Check the Corpus
+
+```{r, results = "asis"}
+if (RcppCWB::cqp_is_initialized()) RcppCWB::cqp_reset_registry(Sys.getenv("CORPUS_REGISTRY"))
+library(polmineR, quietly = TRUE)
+corpus("AUSTEN", registry_dir = Sys.getenv("CORPUS_REGISTRY")) %>% 
+  size()
+```
+
+---
+
+# Scenario 1: From tidytext to CWB
+
+```{r, echo = FALSE}
+options("polmineR.pagelength" = 3L)
+```
+
+```{r, render = knit_print}
+polmineR::corpus("AUSTEN") %>% 
+  kwic(query = "Emma", s_attributes = "book")
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Description
+
+* while the **tidytext** example illustrates a common scenario, **XML** is an interoperable file format which is common in NLP tasks
+
+* it can also represent nested data structures
+
+* to illustrate how to process **XML**, a sample of debates of the United Nations General Assembly is used
+
+* the data is provided with the `cwbtools` R package and follow a standard suggested by the [Text Encoding Initiative (TEI)](https://tei-c.org/)
+
+```{r get_unga_teifiles}
+teidir <- system.file(package = "cwbtools", "xml", "UNGA")
+teifiles <- list.files(teidir, full.names = TRUE)
+list.files(teidir)
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Preparation
+
+* within the temporary directory created earlier, an empty data directory is created for the UNGA corpus
+
+```{r}
+unga_data_dir_tmp <- fs::path(data_dir_tmp, "unga")
+if (!file.exists(unga_data_dir_tmp)) dir.create(unga_data_dir_tmp)
+file.remove(list.files(unga_data_dir_tmp, full.names = TRUE))
+```
+
+
+### Creating a `CorpusData` Object
+
+* create a new instance of the `CorpusData` object described above
+
+```{r}
+UNGA <- CorpusData$new()
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Importing XML
+
+* like above, this `CorpusData` object will ultimately contain the text and the metadata of the documents that should be imported into the Corpus Workbench
+* to add this information, the raw XML files are imported into the object with the `import_xml()` method
+* `import_xml()` parses the XML files and extracts "chunks", i.e. often untokenized sequences of text and metadata which is derived from the document structure
+* *Note*: What this metadata is depends on the input data. In the preparation of these specific XMLs, each speaker represents an XML element containing metadata on speaker level
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Metadata
+
+* additional metadata can be added using the argument `metadata`
+* this adds metadata on document-level, i.e. metadata which is not annotated on the level of individual XML elements such as speeches, book chapters or news articles but only once in the document (for example information which applies to all elements of the XML such as the date of a session, or the title of the book, etc.)
+* `metadata` has to be a named `character vector` of metadata names and XPath expressions
+
+```{r}
+metadata <- c(
+  lp = "//legislativePeriod", session = "//titleStmt/sessionNo",
+  date = "//publicationStmt/date", url = "//sourceDesc/url",
+  src = "//sourceDesc/filetype"
+)
+```
+
+### Importing XML with Metadata
+
+```{r}
+UNGA$import_xml(filenames = teifiles, meta = metadata)
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+* calling the UNGA object again should indicate that the import worked
+
+```{r}
+UNGA
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Cleaning the Input
+
+* `UNGA` now contains two `data.table` objects in the slots `metadata` and `chunktable`
+
+* the `chunktable` contains individual sequences of tokens assigned to a speaker. Depending on the structure of the raw XML files, this could be paragraphs or other units of text. Each chunk in the `chunktable` corresponds to a row in the `metadata` table
+
+* `metadata` is a `data.table` object and can be modified accordingly. This can be used to do some cleaning
+
+* in this example, elements which do not represent speech but are used as announcements of the next speaker ("The Acting President:") are removed as this information is also represented in the metadata table:
+
+```{r}
+to_keep <- which(is.na(UNGA$metadata[["speaker"]]))
+UNGA$chunktable <- UNGA$chunktable[to_keep]
+UNGA$metadata <- UNGA$metadata[to_keep][, speaker := NULL]
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Metadata as structural attributes 
+
+
+* as mentioned above, the columns in the metadata will serve as structural attributes and must follow specific naming conventions
+
+* as `data.table` objects, the column in the `metadata` table can be renamed if necessary. In this case, we want improve to the usability of the corpus by assigning more telling names
+
+```{r}
+setnames(UNGA$metadata,
+         old = c("sp_who", "sp_state", "sp_role"),
+         new = c("who", "state", "role"))
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Tokenizing the Chunks
+
+* as shown in the first example, the process of importing data requires the creation of a so-called **tokenstream** as an input to represent positional attributes - i.e. the positions in which a word occurs, optionally with additional linguistic annotation
+
+* the textual data in the `chunktable` slot is not yet tokenized, i.e. represented as separate units
+
+* in this scenario, each chunk is simply tokenized with the `tokenize` method which uses the functionality of the `tokenizers` R package:
+
+```{r}
+UNGA$tokenize(lowercase = FALSE, progress = FALSE, verbose = TRUE, strip_punct = FALSE)
+```
+
+* the `tokenstream` slot of the `UNGA` object now contains another `data.table` with three columns:
+
+```{r}
+UNGA$tokenstream |> head(3)
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Encoding the Corpus
+
+* after these preparatory steps, the `CorpusData` object `UNGA` now contains a `tokenstream` as well as the corresponding `metadata` for each chunk of text
+
+* *Note*: The metadata column "id" represents a special case: All metadata must be character columns. However, "id" is used earlier to match the `metadata` and the `tokenstream`. For this, it must remain as an integer until this point. If "id" should be included in the final corpus, it must be transformed to a character now. This can be done again like any column in a `data.table`.
+
+```{r}
+UNGA$metadata[, id := as.character(id)]
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+* with that being done, the data can be imported into the Corpus Workbench:
+
+```{r}
+s_attrs <- c("id", "who", "state", "role", "lp", "session", "date")
+
+UNGA$encode(
+  registry_dir = registry_tmp,
+  data_dir = unga_data_dir_tmp,
+  corpus = "UNGASAMPLE",
+  encoding = "utf8",
+  method = "R",
+  p_attributes = "word",
+  s_attributes = s_attrs,
+  compress = FALSE,
+  verbose = FALSE
+)
+RcppCWB::cl_delete_corpus("UNGASAMPLE", registry = registry_tmp)
+```
+
+---
+
+# Scenario 2: From XML to CWB
+
+### Accessing the Corpus
+
+* Note: If both scenarios are run in sequence, the registry of the session is already set to a temporary registry created by `polmineR` and/or `RcppCWB`. In this case, the newly created corpus cannot be found without resetting the registry.
+
+```{r}
+RcppCWB::cqp_reset_registry(registry = registry_tmp)
+size("UNGASAMPLE")
+```
+
+---
+
+# Scenario 2: From tidytext to CWB
+
+```{r, echo = FALSE}
+options("polmineR.pagelength" = 3L)
+```
+
+```{r, render = knit_print}
+polmineR::corpus("UNGASAMPLE") %>% 
+  kwic(query = "war", s_attributes = "state")
+```
+
+---
+
+
+# Use Case: Indexing MARPOR
+
+```{r, echo = FALSE}
+options(warn = -1) 
+```
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(cwbtools)
+library(polmineR)
+library(RcppCWB)
+library(manifestoR)
+library(dplyr)
+library(purrr)
+library(tidytext)
+library(data.table)
+```
+
+---
+
+# Mapping for party IDs
+
+```{r}
+party_names <- c(
+  "41112" = "GRUENE",
+  "41113" = "GRUENE",
+  "41221" = "PDS",
+  "41222" = "LINKE",
+  "41223" = "LINKE",
+  "41320" = "SPD",
+  "41420" = "FDP",
+  "41521" = "CDU/CSU",
+  "41952" = "Piraten",
+  "41953" = "AfD",
+  "41912" = "SSW"
+)
+```
+
+---
+  
+# Generate token data
+
+```{r}
+mp_setapikey("~/.credentials/manifesto_apikey.txt")
+
+tokstream <- mp_corpus(countryname == "Germany" & edate > as.Date("2017-10-01")) %>% 
+  lapply(as.data.frame) %>% 
+  lapply(as_tibble) %>% 
+  imap(function(tbl, id) mutate(tbl, id = id)) %>% 
+  bind_rows() %>% 
+  mutate(yearmon = gsub("^.*_(\\d{4})(\\d{2})$", "\\1-\\2", id)) %>% 
+  mutate(party = party_names[gsub("^(.*)_.*$", "\\1", id)]) %>% 
+  unnest_tokens(word, text, to_lower = FALSE, strip_punct = FALSE) %>% 
+  mutate(cpos = 0L:(nrow(.) - 1L))
+```
+
+---
+
+# Generate structural annotation
+
+```{r}
+mdata <- tokstream %>% 
+  group_by(pos, yearmon, party) %>% 
+  summarise(cpos_left = min(cpos), cpos_right = max(cpos), .groups = "rowwise") %>% 
+  mutate(pos = as.character(pos)) %>% 
+  relocate(cpos_left, cpos_right) %>% 
+  arrange(cpos_left)
+```
+
+--- 
+
+# Instantiate CorpusData
+
+```{r}  
+MARPOR <- CorpusData$new()
+MARPOR$tokenstream <- tokstream %>% select(cpos, word) %>% as.data.table()
+MARPOR$metadata <- mdata
+```
+
+... we also make sure that (temporary) directories needed are available
+
+```{r}
+data_dir_tmp <- fs::path(tempdir(), "data_dir")
+registry_tmp <- fs::path(tempdir(), "registry")
+
+if (!dir.exists(data_dir_tmp)) dir.create(data_dir_tmp)
+if (!dir.exists(data_dir_tmp)) dir.create(registry_tmp)
+```
+
+---
+
+# Encode MARPOR corpus (CWB style)
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+MARPOR$encode(
+  corpus = "MARPOR",
+  encoding = "utf8",
+  p_attributes = "word",
+  s_attributes = c("pos", "yearmon", "party"),
+  registry_dir = registry_tmp,
+  data_dir = data_dir_tmp,
+  method = "R",
+  compress = FALSE
+)
+```
+
+```{r}
+RcppCWB::cl_delete_corpus("MARPOR", registry = registry_tmp)
+RcppCWB::cqp_reset_registry(registry_tmp)
+```
+
+---
+
+# Check MARPOR corpus!
+
+```{r, echo = FALSE}
+options("polmineR.pagelength" = 3L)
+```
+
+
+```{r, render = knit_print}
+polmineR::corpus("MARPOR") %>% 
+  kwic(query = "Zuwanderung", s_attributes = "party")
+```
+
+---
+
+# Further Remarks and Potential Pitfalls
+
+### Remarks
+
+* in the example above, we only added two positional attributes: "word" and "stem". Other linguistic annotation layers can be added with additional NLP tools. In practice, this can be as easy as adding another column to the `tokenstream` data.table within the `CorpusData` object
+
+* in more advanced scenarios, nested annotations can be encoded. In GermaParl this is done, for example, for interjections or entity annotations within utterances. In this case, the data is imported into the Corpus Workbench as a vertical XML
+
+* not all structural attributes must be available for all tokens
+  * in GermaParl, there are regions within the corpus which do not contain any values for Named Entities or "Stage" annotation
+  
+* not all structural attributes must have values
+  * in GermaParl, there is an annotation for sentence boundaries. Each token is assigned to a sentence, but the sentences do not have values itself, just starting and end positions
+
+---
+
+# Further Remarks and Potential Pitfalls
+
+### Potential Pitfalls
+
+* matching length of metadata and tokenstream
+  * it is important that the metadata does not describe corpus positions which are not available in the corpus, i.e. which exceed the number of tokens
+
+* the Corpus Workbench does have a limit in size which is about 2 billion tokens per corpus (see the Corpus Encoding Manual)
+
+* there are strict rules for naming attributes in the Corpus Workbench: Attributes which do not follow these rules are not properly encoded
+
+* `encode()` contains an argument `encoding` which refers to the text encoding of the corpus. It is important to chose an appropriate encoding that is representative of the input data
